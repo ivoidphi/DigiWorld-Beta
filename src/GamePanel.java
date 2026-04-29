@@ -3,6 +3,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.FontMetrics;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
@@ -49,6 +50,24 @@ public class GamePanel extends JPanel implements Runnable {
     private final Set<String> seenNpcDialogues;
     private double windTimeSeconds;
     private final List<Particle> particles;
+    private final String[] starterChoices;
+    private final String[] enemyChoices;
+    private int starterSelectionIndex;
+    private int enemySelectionIndex;
+    private boolean starterChosen;
+    private static final String PLAYER_NAME = "Chief Rei";
+    private static final boolean CHEATS_ENABLED = false;
+    private final DialogueController dialogueController;
+    private boolean dialogueFromGenEd;
+    private boolean dialogueFromAlfredIntro;
+    private boolean dialogueFromAlfredStarter;
+    private boolean alfredIntroCompleted;
+    private boolean genEdDialogueCompleted;
+    private boolean starterSequenceCompleted;
+    private int storyStage;
+    private Npc speechBubbleNpc;
+    private String speechBubbleText;
+    private double speechBubbleTimer;
 
     public GamePanel() {
         setPreferredSize(new Dimension(SCREEN_WIDTH, SCREEN_HEIGHT));
@@ -84,6 +103,25 @@ public class GamePanel extends JPanel implements Runnable {
         seenNpcDialogues = new HashSet<>();
         windTimeSeconds = 0.0;
         particles = new ArrayList<>();
+        starterChoices = new String[]{
+                "Kyoflare", "Nokami", "Vineratops", "Voltchu", "Zyuugor",
+                "Pirrot", "Gekuma", "Shadefox", "Kingmantis"
+        };
+        enemyChoices = new String[]{"Nokami", "Vineratops", "Kyoflare"};
+        starterSelectionIndex = 0;
+        enemySelectionIndex = 0;
+        starterChosen = false;
+        dialogueController = new DialogueController();
+        dialogueFromGenEd = false;
+        dialogueFromAlfredIntro = false;
+        dialogueFromAlfredStarter = false;
+        alfredIntroCompleted = false;
+        genEdDialogueCompleted = false;
+        starterSequenceCompleted = false;
+        storyStage = 0;
+        speechBubbleNpc = null;
+        speechBubbleText = "";
+        speechBubbleTimer = 0.0;
     }
 
     public void startGame() {
@@ -137,6 +175,12 @@ public class GamePanel extends JPanel implements Runnable {
             handleInventoryInput();
         } else if (gameState == GameState.NPC_MENU) {
             handleMenuInput();
+        } else if (gameState == GameState.DIALOGUE) {
+            handleDialogueInputAndTyping(deltaSeconds);
+        } else if (gameState == GameState.STARTER_SELECT) {
+            handleStarterSelectionInput();
+        } else if (gameState == GameState.ENEMY_SELECT) {
+            handleEnemySelectionInput();
         } else {
             if (input.consumeJustPressed(KeyEvent.VK_B)) {
                 gameState = GameState.INVENTORY;
@@ -150,27 +194,138 @@ public class GamePanel extends JPanel implements Runnable {
             Npc nearbyNpc = getNearbyNpc(current);
             if (input.consumeJustPressed(KeyEvent.VK_E) && nearbyNpc != null) {
                 activeNpc = nearbyNpc;
-                activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
-                interactionMenuOpen = true;
-                gameState = GameState.NPC_MENU;
-                if (hasDialogue(activeNpc)) {
-                    interactionMessage = hasSeenDialogue(activeNpc)
-                            ? activeNpc.getName() + ": Want to see my dialogue again?"
-                            : activeNpc.getName() + ": I have something to tell you.";
+                if (isProfessorAlfred(activeNpc, current)) {
+                    if (storyStage == 0) {
+                        DialogueSequence script = DialogueFactory.createSequence(
+                                new String[]{"Prof Alfred", PLAYER_NAME, "Prof Alfred"},
+                                new String[]{
+                                        "Hello and welcome Mr. gaming prodigy and 10-time world champion " + PLAYER_NAME + " to the gaming lab where you will be testing our new revolutionary game \"DigiWorld\". Oh, where are my manners!? I'm Professor Ai-P, and I'm in charge of developing this game. You will be transported into a world full of creatures called \"Mecha Beasts\", fuse with them, create a bond and battle together.",
+                                        "Thanks for the explanation, Professor, but may I know what is the reason the government funded to create this game?",
+                                        "Go ask Gen Ed over there. He can explain that part better."
+                                }
+                        );
+                        activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
+                        startDialogue(script, false, true, false);
+                    } else if (storyStage == 2 && !starterSequenceCompleted) {
+                        DialogueSequence script = DialogueFactory.createSequence(
+                                new String[]{"Prof Alfred"},
+                                new String[]{"Excellent! Now before we transport you, you will need this G-Watch, Mech-driver and Beast-Cards. Choose your starter from the available Mecha Beasts."}
+                        );
+                        activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
+                        startDialogue(script, false, false, true);
+                    } else {
+                        showNpcSpeechBubble(activeNpc, "I got nothing for you buddy", 2.6);
+                        activeNpc.endInteraction();
+                        activeNpc = null;
+                    }
+                } else if (isGenEd(activeNpc, current)) {
+                    if (storyStage == 1) {
+                        DialogueSequence script = DialogueFactory.createSequence(
+                                new String[]{"Gen Ed", PLAYER_NAME},
+                                new String[]{
+                                        "I shall be the one to answer that question Mr. " + PLAYER_NAME + ", I was actually intrigued by gaming. Seeing players think like they're chess masters or generals and coordinate their upper body in tapping their devices to win, it gave me an idea. What if we create a game where you become the character and fight but in a digital world? This way gamers could play digital games while still being physically active, and they will be able to experience the feeling of being their character. This could create a new legacy for \"Gamers\".",
+                                        "That doesn't fully answer my question but oh well. Let's get this started."
+                                }
+                        );
+                        activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
+                        startDialogue(script, true, false, false);
+                    } else {
+                        showNpcSpeechBubble(activeNpc, "I got nothing for you buddy", 2.6);
+                        activeNpc.endInteraction();
+                        activeNpc = null;
+                    }
                 } else {
+                    interactionMenuOpen = true;
+                    gameState = GameState.NPC_MENU;
                     interactionMessage = activeNpc.getName() + " in " + current.getName() + ": Choose action.";
                 }
             }
             checkWildEncounter(current);
         }
 
-        if (gameState != GameState.BATTLE) {
+        if (gameState != GameState.BATTLE && gameState != GameState.DIALOGUE) {
             current.update(deltaSeconds);
-            camera.follow(player, current, LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE_SIZE);
         }
+        updateCamera(current);
         updateParticles(deltaSeconds);
+        updateSpeechBubble(deltaSeconds);
 
         input.endFrame();
+    }
+
+    private void updateSpeechBubble(double deltaSeconds) {
+        if (speechBubbleTimer <= 0.0) {
+            return;
+        }
+        speechBubbleTimer = Math.max(0.0, speechBubbleTimer - deltaSeconds);
+        if (speechBubbleTimer <= 0.0) {
+            speechBubbleNpc = null;
+            speechBubbleText = "";
+        }
+    }
+
+    private void updateCamera(World current) {
+        if (gameState == GameState.DIALOGUE && activeNpc != null) {
+            int focusX = (player.getCenterX() + activeNpc.getCenterX()) / 2;
+            int focusY = (player.getCenterY() + activeNpc.getCenterY()) / 2;
+            camera.followPoint(focusX, focusY, current, LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE_SIZE);
+            return;
+        }
+        camera.follow(player, current, LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE_SIZE);
+    }
+
+    private void startDialogue(DialogueSequence sequence, boolean fromGenEd, boolean fromAlfredIntro, boolean fromAlfredStarter) {
+        dialogueController.start(sequence);
+        dialogueFromGenEd = fromGenEd;
+        dialogueFromAlfredIntro = fromAlfredIntro;
+        dialogueFromAlfredStarter = fromAlfredStarter;
+        interactionMenuOpen = false;
+        gameState = GameState.DIALOGUE;
+    }
+
+
+    private void handleDialogueInputAndTyping(double deltaSeconds) {
+        if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
+            endDialogue(true);
+            return;
+        }
+        if (dialogueController.getCurrentPage().getText().isEmpty()) {
+            endDialogue(false);
+            return;
+        }
+        dialogueController.update(deltaSeconds);
+
+        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE) || input.consumeJustPressed(KeyEvent.VK_E)) {
+            if (dialogueController.advance()) {
+                endDialogue(false);
+            }
+        }
+    }
+
+    private void endDialogue(boolean interrupted) {
+        if (activeNpc != null) {
+            activeNpc.endInteraction();
+        }
+        if (!interrupted) {
+            if (dialogueFromGenEd) {
+                genEdDialogueCompleted = true;
+                storyStage = 2;
+            }
+            if (dialogueFromAlfredIntro) {
+                alfredIntroCompleted = true;
+                storyStage = 1;
+            }
+            if (dialogueFromAlfredStarter) {
+                gameState = GameState.STARTER_SELECT;
+                interactionMessage = "";
+                return;
+            }
+        } else {
+            interactionMessage = "Dialogue interrupted.";
+        }
+
+        activeNpc = null;
+        gameState = GameState.EXPLORATION;
     }
 
     private Npc getNearbyNpc(World world) {
@@ -192,7 +347,12 @@ public class GamePanel extends JPanel implements Runnable {
         }
 
         if (input.consumeJustPressed(KeyEvent.VK_1)) {
-            if (canTeleportNext(activeNpc, current) && canGoNextWorld()) {
+            if (isProfessorAlfred(activeNpc, current)) {
+                gameState = GameState.STARTER_SELECT;
+                interactionMenuOpen = false;
+                interactionMessage = "Prof Alfred: Choose your starter beast.";
+                return;
+            } else if (canTeleportNext(activeNpc, current) && canGoNextWorld()) {
                 worldIndex++;
                 respawnAtWorldStart();
                 interactionMessage = "Teleported to " + worlds[worldIndex].getName();
@@ -209,6 +369,18 @@ public class GamePanel extends JPanel implements Runnable {
         }
 
         if (input.consumeJustPressed(KeyEvent.VK_2)) {
+            if (isProfessorAlfred(activeNpc, current) && canGoNextWorld()) {
+                worldIndex++;
+                respawnAtWorldStart();
+                interactionMessage = "Teleported to " + worlds[worldIndex].getName();
+                if (activeNpc != null) {
+                    activeNpc.endInteraction();
+                }
+                interactionMenuOpen = false;
+                activeNpc = null;
+                gameState = GameState.EXPLORATION;
+                return;
+            }
             if (activeNpc != null && hasDialogue(activeNpc)) {
                 showNpcDialogue(activeNpc, current);
                 if (activeNpc != null) {
@@ -230,6 +402,90 @@ public class GamePanel extends JPanel implements Runnable {
             interactionMenuOpen = false;
             activeNpc = null;
             gameState = GameState.EXPLORATION;
+        }
+    }
+
+    private void handleStarterSelectionInput() {
+        if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
+            gameState = GameState.EXPLORATION;
+            if (activeNpc != null) {
+                activeNpc.endInteraction();
+            }
+            activeNpc = null;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_LEFT) || input.consumeJustPressed(KeyEvent.VK_A)) {
+            starterSelectionIndex = (starterSelectionIndex - 1 + starterChoices.length) % starterChoices.length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_RIGHT) || input.consumeJustPressed(KeyEvent.VK_D)) {
+            starterSelectionIndex = (starterSelectionIndex + 1) % starterChoices.length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_UP) || input.consumeJustPressed(KeyEvent.VK_W)) {
+            starterSelectionIndex = (starterSelectionIndex - 1 + starterChoices.length) % starterChoices.length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_DOWN) || input.consumeJustPressed(KeyEvent.VK_S)) {
+            starterSelectionIndex = (starterSelectionIndex + 1) % starterChoices.length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_1)) starterSelectionIndex = 0;
+        if (input.consumeJustPressed(KeyEvent.VK_2) && starterChoices.length > 1) starterSelectionIndex = 1;
+        if (input.consumeJustPressed(KeyEvent.VK_3) && starterChoices.length > 2) starterSelectionIndex = 2;
+        if (input.consumeJustPressed(KeyEvent.VK_4) && starterChoices.length > 3) starterSelectionIndex = 3;
+        if (input.consumeJustPressed(KeyEvent.VK_5) && starterChoices.length > 4) starterSelectionIndex = 4;
+        if (input.consumeJustPressed(KeyEvent.VK_6) && starterChoices.length > 5) starterSelectionIndex = 5;
+        if (input.consumeJustPressed(KeyEvent.VK_7) && starterChoices.length > 6) starterSelectionIndex = 6;
+        if (input.consumeJustPressed(KeyEvent.VK_8) && starterChoices.length > 7) starterSelectionIndex = 7;
+        if (input.consumeJustPressed(KeyEvent.VK_9) && starterChoices.length > 8) starterSelectionIndex = 8;
+        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+            String chosen = starterChoices[starterSelectionIndex];
+            if (starterSelectionIndex >= 3 && starterSelectionIndex != 8) {
+                interactionMessage = chosen + " is not available yet in this build.";
+                return;
+            }
+            if (starterSelectionIndex == 8 && !CHEATS_ENABLED) {
+                interactionMessage = "Kingmantis is locked. Enable cheats to select it.";
+                return;
+            }
+            battleSystem.setStarterBeast(chosen);
+            inventory.addBeast(chosen);
+            starterChosen = true;
+            starterSequenceCompleted = true;
+            interactionMessage = "Starter chosen: " + chosen + ". Teleporting to Alpha Village.";
+            worldIndex = 1;
+            respawnAtWorldStart();
+            gameState = GameState.EXPLORATION;
+            if (activeNpc != null) {
+                activeNpc.endInteraction();
+            }
+            activeNpc = null;
+        }
+    }
+
+    private void handleEnemySelectionInput() {
+        if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
+            gameState = GameState.EXPLORATION;
+            interactionMessage = "Battle cancelled.";
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_LEFT) || input.consumeJustPressed(KeyEvent.VK_A)) {
+            enemySelectionIndex = (enemySelectionIndex - 1 + enemyChoices.length) % enemyChoices.length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_RIGHT) || input.consumeJustPressed(KeyEvent.VK_D)) {
+            enemySelectionIndex = (enemySelectionIndex + 1) % enemyChoices.length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_1)) enemySelectionIndex = 0;
+        if (input.consumeJustPressed(KeyEvent.VK_2) && enemyChoices.length > 1) enemySelectionIndex = 1;
+        if (input.consumeJustPressed(KeyEvent.VK_3) && enemyChoices.length > 2) enemySelectionIndex = 2;
+        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+            battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
+            battleSystem.startWildBattle(enemyChoices[enemySelectionIndex]);
+            gameState = GameState.BATTLE;
+            interactionMessage = "";
         }
     }
 
@@ -296,10 +552,32 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/gen-ed/gened-r.png"
                         )
                 }),
-                new World("World 2 - Beta City", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
-                        new Npc("Jax", TILE_SIZE, TILE_SIZE, new Color(93, 177, 214), new int[][]{{26, 19}, {28, 19}, {28, 21}, {26, 21}})
+                new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
+                        new Npc(
+                                "Ace Jazz",
+                                TILE_SIZE,
+                                TILE_SIZE,
+                                new Color(93, 177, 214),
+                                new int[][]{{26, 19}, {28, 19}, {28, 21}, {26, 21}},
+                                "res/characters/ace-jazz/acejazz-fw.png",
+                                "res/characters/ace-jazz/acejazz-b.png",
+                                "res/characters/ace-jazz/acejazz-l.png",
+                                "res/characters/ace-jazz/acejazz-r.png"
+                        ),
+                        new Npc("Prof Alfred", TILE_SIZE, TILE_SIZE, new Color(214, 93, 177), new int[][]{{22, 18}, {24, 18}, {24, 20}, {22, 20}},
+                                "res/characters/professor-alfred/profalfred-fw.png",
+                                "res/characters/professor-alfred/profalfred-b.png",
+                                "res/characters/professor-alfred/profalfred-l.png",
+                                "res/characters/professor-alfred/profalfred-r.png"
+                        ),
+                        new Npc("Gen Ed", TILE_SIZE, TILE_SIZE, new Color(245, 132, 92), new int[][]{{20, 17}, {18, 17}, {18, 20}, {20, 20}},
+                                "res/characters/gen-ed/gened-fw.png",
+                                "res/characters/gen-ed/gened-b.png",
+                                "res/characters/gen-ed/gened-l.png",
+                                "res/characters/gen-ed/gened-r.png"
+                        )
                 }),
-                new World("World 3 - Gamma Ruins", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
+                new World("World 3 - Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
                         new Npc("Mira", TILE_SIZE, TILE_SIZE, new Color(230, 160, 75), new int[][]{{29, 21}, {31, 21}, {31, 23}, {29, 23}})
                 }),
                 new World("World 4 - Collapse Zone", 60, 46, TILE_SIZE, 30, 23, new Npc[]{
@@ -330,19 +608,48 @@ public class GamePanel extends JPanel implements Runnable {
             renderParticles(scene);
             drawNearbyNpcNametags(scene, current);
             drawHud(scene, current);
+            drawNpcSpeechBubble(scene);
+            if (gameState == GameState.DIALOGUE && activeNpc != null) {
+                drawDialogueAboveNpc(scene);
+            }
             if (interactionMenuOpen) {
                 drawMenu(scene);
             }
             if (gameState == GameState.INVENTORY) {
                 inventory.render(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+            } else if (gameState == GameState.STARTER_SELECT) {
+                drawRpgBeastSelection(scene, "Professor Alfred", "Choose your starter beast", starterChoices, starterSelectionIndex);
+            } else if (gameState == GameState.ENEMY_SELECT) {
+                drawRpgBeastSelection(scene, "Wild Bush Encounter", "Choose which beast to fight", enemyChoices, enemySelectionIndex);
             }
         }
         scene.dispose();
 
         Graphics2D g2d = (Graphics2D) g;
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g2d.drawImage(frameBuffer, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, null);
+        if (gameState == GameState.DIALOGUE && activeNpc != null) {
+            drawZoomedDialogueScene(g2d);
+        } else {
+            g2d.drawImage(frameBuffer, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, null);
+        }
         g2d.dispose();
+    }
+
+    private void drawZoomedDialogueScene(Graphics2D g2d) {
+        double zoom = 1.18;
+        int srcW = (int) Math.round(LOGICAL_WIDTH / zoom);
+        int srcH = (int) Math.round(LOGICAL_HEIGHT / zoom);
+        int npcScreenX = (int) activeNpc.getX() - camera.getX() + activeNpc.getSize() / 2;
+        int playerScreenX = (int) player.getX() - camera.getX() + player.getSize() / 2;
+        int npcScreenY = (int) activeNpc.getY() - camera.getY() + activeNpc.getSize() / 2;
+        int playerScreenY = (int) player.getY() - camera.getY() + player.getSize() / 2;
+        int focusX = (npcScreenX + playerScreenX) / 2;
+        int focusY = (npcScreenY + playerScreenY) / 2;
+        int sx1 = Math.max(0, Math.min(LOGICAL_WIDTH - srcW, focusX - srcW / 2));
+        int sy1 = Math.max(0, Math.min(LOGICAL_HEIGHT - srcH, focusY - srcH / 2));
+        int sx2 = sx1 + srcW;
+        int sy2 = sy1 + srcH;
+        g2d.drawImage(frameBuffer, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, sx1, sy1, sx2, sy2, null);
     }
 
     private void drawHud(Graphics2D g2d, World current) {
@@ -358,7 +665,7 @@ public class GamePanel extends JPanel implements Runnable {
             g2d.drawString("Press E near NPC", 16, 64);
         }
         g2d.setColor(new Color(255, 255, 255, 230));
-        g2d.drawString("Wild battles trigger in bush tiles", 16, 82);
+        g2d.drawString("Bush tile: choose an enemy beast to battle", 16, 82);
         if (!interactionMessage.isEmpty()) {
             g2d.setColor(new Color(255, 255, 255, 230));
             g2d.drawString(interactionMessage, 16, LOGICAL_HEIGHT - 12);
@@ -503,6 +810,42 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.drawString(text, boxX + paddingX, boxY + 10);
     }
 
+    private void showNpcSpeechBubble(Npc npc, String text, double durationSeconds) {
+        if (npc == null || text == null || text.isBlank()) {
+            return;
+        }
+        speechBubbleNpc = npc;
+        speechBubbleText = text;
+        speechBubbleTimer = Math.max(0.6, durationSeconds);
+    }
+
+    private void drawNpcSpeechBubble(Graphics2D g2d) {
+        if (speechBubbleNpc == null || speechBubbleTimer <= 0.0 || speechBubbleText.isBlank()) {
+            return;
+        }
+        g2d.setFont(UIFont.regular(10f));
+        int maxWidth = 220;
+        String[] lines = wrapTextByWidth(g2d, speechBubbleText, maxWidth - 18);
+        int lineHeight = 12;
+        int boxWidth = maxWidth;
+        int boxHeight = 12 + lines.length * lineHeight;
+        int npcX = (int) speechBubbleNpc.getX() - camera.getX() + speechBubbleNpc.getSize() / 2;
+        int npcY = (int) speechBubbleNpc.getY() - camera.getY();
+        int x = npcX - boxWidth / 2;
+        int y = npcY - boxHeight - 20;
+        x = Math.max(6, Math.min(LOGICAL_WIDTH - boxWidth - 6, x));
+        y = Math.max(6, y);
+
+        g2d.setColor(new Color(0, 0, 0, 210));
+        g2d.fillRoundRect(x, y, boxWidth, boxHeight, 8, 8);
+        g2d.setColor(new Color(240, 240, 240));
+        g2d.drawRoundRect(x, y, boxWidth, boxHeight, 8, 8);
+        g2d.setColor(new Color(255, 230, 140));
+        for (int i = 0; i < lines.length; i++) {
+            g2d.drawString(lines[i], x + 9, y + 16 + i * lineHeight);
+        }
+    }
+
     private void drawMenu(Graphics2D g2d) {
         int boxWidth = 360;
         int boxHeight = 110;
@@ -516,12 +859,17 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setFont(UIFont.regular(12f));
         String menuNpcName = activeNpc != null ? activeNpc.getName() : "NPC";
         g2d.drawString(menuNpcName + " Menu", x + 14, y + 24);
-        if (activeNpc != null && canTeleportNext(activeNpc, worlds[worldIndex]) && canGoNextWorld()) {
-            g2d.drawString("1: Go to Beta City", x + 14, y + 50);
+        if (isProfessorAlfred(activeNpc, worlds[worldIndex])) {
+            g2d.drawString("1: Choose starter beast", x + 14, y + 50);
+            if (canGoNextWorld()) {
+                g2d.drawString("2: Go to Alpha Village", x + 14, y + 70);
+            }
+        } else if (activeNpc != null && canTeleportNext(activeNpc, worlds[worldIndex]) && canGoNextWorld()) {
+            g2d.drawString("1: Go to Alpha Village", x + 14, y + 50);
         } else if (activeNpc != null && hasDialogue(activeNpc)) {
             g2d.drawString("1: Talk", x + 14, y + 50);
-        }
-        if (activeNpc != null && hasDialogue(activeNpc)) {
+            g2d.drawString("2: See dialogue again", x + 14, y + 70);
+        } else if (activeNpc != null && hasDialogue(activeNpc)) {
             g2d.drawString("2: " + (hasSeenDialogue(activeNpc) ? "See dialogue again" : "Talk"), x + 14, y + 70);
         } else if (canGoPreviousWorld()) {
             g2d.drawString("2: Go to previous world", x + 14, y + 70);
@@ -535,8 +883,18 @@ public class GamePanel extends JPanel implements Runnable {
                 && "Prof Alfred".equalsIgnoreCase(npc.getName());
     }
 
+    private boolean isProfessorAlfred(Npc npc, World world) {
+        return canTeleportNext(npc, world);
+    }
+
     private boolean hasDialogue(Npc npc) {
         return npc != null && "Gen Ed".equalsIgnoreCase(npc.getName());
+    }
+
+    private boolean isGenEd(Npc npc, World world) {
+        return npc != null
+                && "Hometown".equalsIgnoreCase(world.getName())
+                && "Gen Ed".equalsIgnoreCase(npc.getName());
     }
 
     private boolean hasSeenDialogue(Npc npc) {
@@ -570,10 +928,14 @@ public class GamePanel extends JPanel implements Runnable {
             return;
         }
 
+        if (!starterChosen) {
+            return;
+        }
+
         int encounterChancePercent = 100;
         if (random.nextInt(100) < encounterChancePercent) {
-            battleSystem.startWildBattle();
-            gameState = GameState.BATTLE;
+            gameState = GameState.ENEMY_SELECT;
+            enemySelectionIndex = 0;
             if (activeNpc != null) {
                 activeNpc.endInteraction();
             }
@@ -582,4 +944,142 @@ public class GamePanel extends JPanel implements Runnable {
             interactionMessage = "";
         }
     }
+
+    private void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices, int selectedIndex) {
+        int boxWidth = Math.min(560, LOGICAL_WIDTH - 60);
+        int boxHeight = Math.min(290, LOGICAL_HEIGHT - 40);
+        int x = (LOGICAL_WIDTH - boxWidth) / 2;
+        int y = (LOGICAL_HEIGHT - boxHeight) / 2;
+
+        g2d.setColor(new Color(18, 14, 28, 235));
+        g2d.fillRoundRect(x, y, boxWidth, boxHeight, 12, 12);
+        g2d.setColor(new Color(236, 214, 150));
+        g2d.drawRoundRect(x, y, boxWidth, boxHeight, 12, 12);
+        g2d.drawRoundRect(x + 4, y + 4, boxWidth - 8, boxHeight - 8, 10, 10);
+
+        g2d.setFont(UIFont.bold(14f));
+        g2d.setColor(new Color(255, 242, 201));
+        g2d.drawString(title, x + 16, y + 26);
+        g2d.setFont(UIFont.regular(11f));
+        g2d.drawString(subtitle, x + 16, y + 44);
+
+        int cardGap = 12;
+        int cardWidth = (boxWidth - 32 - cardGap * 2) / 3;
+        int cardHeight = 116;
+        int cardY = y + 58;
+        int visualCount = Math.min(3, choices.length);
+        for (int i = 0; i < visualCount; i++) {
+            int cardX = x + 16 + i * (cardWidth + cardGap);
+            boolean selected = i == selectedIndex;
+            g2d.setColor(selected ? new Color(58, 75, 127, 235) : new Color(31, 35, 58, 220));
+            g2d.fillRoundRect(cardX, cardY, cardWidth, cardHeight, 8, 8);
+            g2d.setColor(selected ? new Color(255, 236, 171) : new Color(185, 185, 200));
+            g2d.drawRoundRect(cardX, cardY, cardWidth, cardHeight, 8, 8);
+
+            BufferedImage sprite = battleSystem.getCreatureSprite(choices[i]);
+            if (sprite != null) {
+                g2d.drawImage(sprite, cardX + 20, cardY + 12, cardWidth - 40, 64, null);
+            }
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(UIFont.bold(12f));
+            g2d.drawString((i + 1) + ". " + choices[i], cardX + 10, cardY + 92);
+            g2d.setFont(UIFont.regular(10f));
+            g2d.drawString(selected ? "Selected" : "Pick", cardX + 10, cardY + 108);
+        }
+
+        int listX = x + 16;
+        int listY = cardY + cardHeight + 16;
+        g2d.setFont(UIFont.regular(10f));
+        for (int i = 0; i < choices.length; i++) {
+            boolean selected = i == selectedIndex;
+            boolean locked = i >= 3 && i != 8;
+            boolean cheatLocked = i == 8 && !CHEATS_ENABLED;
+            g2d.setColor(selected ? new Color(255, 236, 171) : new Color(220, 220, 230));
+            String suffix = locked ? " (Not available)" : (cheatLocked ? " (Cheat only)" : "");
+            g2d.drawString((i + 1) + ". " + choices[i] + suffix, listX, listY + i * 12);
+        }
+
+        g2d.setColor(new Color(230, 230, 240));
+        g2d.setFont(UIFont.regular(10f));
+        g2d.drawString("W/S or A/D or 1-9 to choose | ENTER confirm | ESC cancel", x + 16, y + boxHeight - 10);
+    }
+
+    private void drawDialogueAboveNpc(Graphics2D g2d) {
+        if (activeNpc == null) {
+            return;
+        }
+        DialoguePage page = dialogueController.getCurrentPage();
+        String currentSpeaker = page.getSpeaker();
+        String typed = dialogueController.getVisibleText();
+        String[] wrapped = wrapTextByWidth(g2d, typed, 300);
+        int boxWidth = 320;
+        int lineHeight = 14;
+        int footerHeight = dialogueController.isLineFinished() ? 16 : 0;
+        int maxLines = 7;
+        String[] visibleLines = wrapped;
+        if (wrapped.length > maxLines) {
+            visibleLines = new String[maxLines];
+            for (int i = 0; i < maxLines - 1; i++) {
+                visibleLines[i] = wrapped[i];
+            }
+            visibleLines[maxLines - 1] = wrapped[maxLines - 1] + "...";
+        }
+        int boxHeight = 28 + visibleLines.length * lineHeight + footerHeight;
+        boolean speakerIsPlayer = PLAYER_NAME.equalsIgnoreCase(currentSpeaker);
+        int anchorX = speakerIsPlayer
+                ? (int) player.getX() - camera.getX() + player.getSize() / 2
+                : (int) activeNpc.getX() - camera.getX() + activeNpc.getSize() / 2;
+        int anchorY = speakerIsPlayer
+                ? (int) player.getY() - camera.getY()
+                : (int) activeNpc.getY() - camera.getY();
+        int x = anchorX - boxWidth / 2;
+        int y = anchorY - boxHeight - 22;
+        x = Math.max(8, Math.min(LOGICAL_WIDTH - boxWidth - 8, x));
+        y = Math.max(8, y);
+
+        g2d.setColor(new Color(0, 0, 0, 220));
+        g2d.fillRoundRect(x, y, boxWidth, boxHeight, 8, 8);
+        g2d.setColor(new Color(230, 230, 240));
+        g2d.drawRoundRect(x, y, boxWidth, boxHeight, 8, 8);
+        g2d.setColor(speakerIsPlayer ? new Color(170, 220, 255) : new Color(255, 227, 140));
+        g2d.setFont(UIFont.bold(11f));
+        g2d.drawString(currentSpeaker, x + 10, y + 14);
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(UIFont.regular(10f));
+        for (int i = 0; i < visibleLines.length; i++) {
+            g2d.drawString(visibleLines[i], x + 10, y + 32 + i * lineHeight);
+        }
+        if (dialogueController.isLineFinished()) {
+            g2d.setColor(new Color(200, 200, 215));
+            g2d.drawString("ENTER/SPACE continue | ESC skip", x + 10, y + boxHeight - 6);
+        }
+    }
+
+    private String[] wrapTextByWidth(Graphics2D g2d, String text, int maxWidthPx) {
+        if (text == null || text.isEmpty()) {
+            return new String[]{""};
+        }
+        FontMetrics fm = g2d.getFontMetrics(UIFont.regular(10f));
+        List<String> lines = new ArrayList<>();
+        String[] words = text.split(" ");
+        StringBuilder current = new StringBuilder();
+        for (String word : words) {
+            if (current.isEmpty()) {
+                current.append(word);
+                continue;
+            }
+            String candidate = current + " " + word;
+            if (fm.stringWidth(candidate) <= maxWidthPx) {
+                current.append(" ").append(word);
+            } else {
+                lines.add(current.toString());
+                current = new StringBuilder(word);
+            }
+        }
+        if (!current.isEmpty()) {
+            lines.add(current.toString());
+        }
+        return lines.toArray(new String[0]);
+    }
+
 }

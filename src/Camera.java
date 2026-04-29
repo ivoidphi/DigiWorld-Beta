@@ -3,11 +3,15 @@ public class Camera {
     private int y;
 
     public void follow(Entity target, World world, int viewportWidth, int viewportHeight, int tileSize) {
+        followPoint(target.getCenterX(), target.getCenterY(), world, viewportWidth, viewportHeight, tileSize);
+    }
+
+    public void followPoint(int centerX, int centerY, World world, int viewportWidth, int viewportHeight, int tileSize) {
         int worldPixelWidth = world.getWidth() * tileSize;
         int worldPixelHeight = world.getHeight() * tileSize;
 
-        int desiredX = target.getCenterX() - viewportWidth / 2;
-        int desiredY = target.getCenterY() - viewportHeight / 2;
+        int desiredX = centerX - viewportWidth / 2;
+        int desiredY = centerY - viewportHeight / 2;
 
         x = clamp(desiredX, 0, Math.max(0, worldPixelWidth - viewportWidth));
         y = clamp(desiredY, 0, Math.max(0, worldPixelHeight - viewportHeight));

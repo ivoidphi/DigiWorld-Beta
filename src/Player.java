@@ -78,10 +78,30 @@ public class Player extends Entity {
         int rightTile = ((int) checkX + size - 1) / tileSize;
         int bottomTile = ((int) checkY + size - 1) / tileSize;
 
-        return !world.getTile(leftTile, topTile).isBlocked()
+        boolean tileWalkable = !world.getTile(leftTile, topTile).isBlocked()
                 && !world.getTile(rightTile, topTile).isBlocked()
                 && !world.getTile(leftTile, bottomTile).isBlocked()
                 && !world.getTile(rightTile, bottomTile).isBlocked();
+        if (!tileWalkable) {
+            return false;
+        }
+
+        double inset = 2.0;
+        double pLeft = checkX + inset;
+        double pTop = checkY + inset;
+        double pRight = checkX + size - inset;
+        double pBottom = checkY + size - inset;
+        for (Npc npc : world.getNpcs()) {
+            double nLeft = npc.getX() + inset;
+            double nTop = npc.getY() + inset;
+            double nRight = npc.getX() + npc.getSize() - inset;
+            double nBottom = npc.getY() + npc.getSize() - inset;
+            boolean overlap = pLeft < nRight && pRight > nLeft && pTop < nBottom && pBottom > nTop;
+            if (overlap) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public void teleportToTile(int tileX, int tileY) {

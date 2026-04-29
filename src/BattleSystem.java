@@ -8,13 +8,16 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import javax.imageio.ImageIO;
 
 public class BattleSystem {
     private enum ScenePhase { INTRO, COMBAT, OUTRO, RESULT }
     private enum TurnPhase { PLAYER_TURN, ENEMY_THINKING, PLAYER_THINKING }
+    private enum PlayerMenuMode { COMMAND, SWITCH_SELECT }
 
     private static final double THINK_DURATION_SECONDS = 3.0;
     private static final double INTRO_DURATION_SECONDS = 1.2;
@@ -56,6 +59,10 @@ public class BattleSystem {
     private double playerHitTimer;
     private double enemyHitTimer;
     private Rectangle[] actionButtons;
+    private Rectangle[] switchButtons;
+    private PlayerMenuMode playerMenuMode;
+    private boolean[] ownedPlayerCreatures;
+    private boolean openingBeastChoiceRequired;
 
     private BufferedImage enemyBattleSprite;
     private BufferedImage enemyBattleSpriteHit;
@@ -75,14 +82,14 @@ public class BattleSystem {
         beastSpriteHitCache = new HashMap<>();
 
         playerCreatures = new BattleCreature[]{
-                new BattleCreature("Chief Rei", 42, 12, 8, 5),
-                new BattleCreature("Gen Ed", 39, 13, 7, 5),
-                new BattleCreature("Prof Alfred", 45, 10, 9, 5)
+                BeastCatalog.createCreature("Nokami"),
+                BeastCatalog.createCreature("Vineratops"),
+                BeastCatalog.createCreature("Kyoflare")
         };
         playerBattleSprites = new BufferedImage[]{
-                loadSprite("res/characters/chief-rei/chiefrei-fw.png"),
-                loadSprite("res/characters/gen-ed/gened-fw.png"),
-                loadSprite("res/characters/professor-alfred/profalfred-fw.png")
+                loadSprite("res/beasts/nokami/nokami-fw.png"),
+                loadSprite("res/beasts/vineratops/vineratops-fw.png"),
+                loadSprite("res/beasts/kyoflare/kyoflare-fw.png")
         };
         playerBattleSpritesHit = new BufferedImage[]{
                 createRedTintedSprite(playerBattleSprites[0]),
@@ -95,10 +102,17 @@ public class BattleSystem {
         enemyBattleSpriteHit = null;
         battleBackground = loadSprite("res/scenes/hometown-battlescene.png");
         actionButtons = new Rectangle[6];
+        switchButtons = new Rectangle[playerCreatures.length];
+        playerMenuMode = PlayerMenuMode.COMMAND;
+        ownedPlayerCreatures = new boolean[playerCreatures.length];
+        for (int i = 0; i < ownedPlayerCreatures.length; i++) {
+            ownedPlayerCreatures[i] = true;
+        }
+        openingBeastChoiceRequired = false;
     }
 
-    public void startWildBattle() {
-        enemyCreature = createRandomWild();
+    public void startWildBattle(String enemyBeastName) {
+        enemyCreature = createWildByName(enemyBeastName);
         enemyBattleSprite = getBattleSpriteForCreature(enemyCreature.getName());
         enemyBattleSpriteHit = getHitSpriteForCreature(enemyCreature.getName());
         battleType = BattleType.WILD;
@@ -119,7 +133,53 @@ public class BattleSystem {
         enemyHitTimer = 0.0;
         pendingResultMessage = "";
         pendingCaughtCreatureName = null;
-        message = "A wild " + enemyCreature.getName() + " has appeared from the bushes!";
+        openingBeastChoiceRequired = true;
+        playerMenuMode = PlayerMenuMode.SWITCH_SELECT;
+        message = "Choose your beast for this battle.";
+    }
+
+    public String[] getStarterChoices() {
+        return BeastCatalog.starterNames();
+    }
+
+    public BufferedImage getCreatureSprite(String creatureName) {
+        return getBattleSpriteForCreature(creatureName);
+    }
+
+    public void setStarterBeast(String beastName) {
+        if (beastName == null) {
+            return;
+        }
+        for (int i = 0; i < playerCreatures.length; i++) {
+            if (playerCreatures[i].getName().equalsIgnoreCase(beastName.trim())) {
+                activePlayerIndex = i;
+                return;
+            }
+        }
+    }
+
+    public void setOwnedBeasts(Set<String> ownedBeasts) {
+        Set<String> normalized = new HashSet<>();
+        if (ownedBeasts != null) {
+            for (String name : ownedBeasts) {
+                if (name != null && !name.isBlank()) {
+                    normalized.add(name.trim().toLowerCase());
+                }
+            }
+        }
+        for (int i = 0; i < playerCreatures.length; i++) {
+            ownedPlayerCreatures[i] = normalized.contains(playerCreatures[i].getName().toLowerCase());
+        }
+        boolean hasOwned = false;
+        for (boolean owned : ownedPlayerCreatures) {
+            if (owned) {
+                hasOwned = true;
+                break;
+            }
+        }
+        if (!hasOwned) {
+            ownedPlayerCreatures[activePlayerIndex] = true;
+        }
     }
 
     public boolean isActive() {
@@ -137,7 +197,19 @@ public class BattleSystem {
     }
 
     public void handleClick(int logicalX, int logicalY) {
-        if (!active || scenePhase != ScenePhase.COMBAT || turnPhase != TurnPhase.PLAYER_TURN || actionButtons == null) {
+        if (!active || scenePhase != ScenePhase.COMBAT || turnPhase != TurnPhase.PLAYER_TURN) {
+            return;
+        }
+        if (playerMenuMode == PlayerMenuMode.SWITCH_SELECT) {
+            for (int i = 0; i < switchButtons.length; i++) {
+                if (switchButtons[i] != null && switchButtons[i].contains(logicalX, logicalY)) {
+                    trySwitchToIndex(i);
+                    return;
+                }
+            }
+            return;
+        }
+        if (actionButtons == null) {
             return;
         }
         for (int i = 0; i < actionButtons.length; i++) {
@@ -150,6 +222,17 @@ public class BattleSystem {
 
     public String handleInput(InputHandler input) {
         if (!active || scenePhase != ScenePhase.COMBAT || turnPhase != TurnPhase.PLAYER_TURN) {
+            return "none";
+        }
+        if (playerMenuMode == PlayerMenuMode.SWITCH_SELECT) {
+            if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
+                playerMenuMode = PlayerMenuMode.COMMAND;
+                message = "Choose an action.";
+                return "continue";
+            }
+            if (input.consumeJustPressed(KeyEvent.VK_1)) { trySwitchToIndex(0); return "continue"; }
+            if (input.consumeJustPressed(KeyEvent.VK_2)) { trySwitchToIndex(1); return "continue"; }
+            if (input.consumeJustPressed(KeyEvent.VK_3)) { trySwitchToIndex(2); return "continue"; }
             return "none";
         }
         if (input.consumeJustPressed(KeyEvent.VK_1)) { runActionIndex(0); return "continue"; }
@@ -268,7 +351,11 @@ public class BattleSystem {
             drawCenteredBanner(g2d, screenWidth, screenHeight, message);
         } else {
             g2d.drawString(message, 32, commandBoxY + 24);
-            drawActionButtons(g2d, commandBoxX, commandBoxY, commandBoxW);
+            if (playerMenuMode == PlayerMenuMode.SWITCH_SELECT) {
+                drawSwitchButtons(g2d, commandBoxX, commandBoxY, commandBoxW);
+            } else {
+                drawActionButtons(g2d, commandBoxX, commandBoxY, commandBoxW);
+            }
         }
     }
 
@@ -291,14 +378,37 @@ public class BattleSystem {
     }
 
     private void switchBeast() {
-        if (playerCreatures.length <= 1) {
-            message = "No other beast available.";
+        playerMenuMode = PlayerMenuMode.SWITCH_SELECT;
+        message = "Select a beast to switch to (1-3, ESC cancel).";
+    }
+
+    private void trySwitchToIndex(int index) {
+        if (index < 0 || index >= playerCreatures.length) {
             return;
         }
-
-        activePlayerIndex = (activePlayerIndex + 1) % playerCreatures.length;
+        if (!ownedPlayerCreatures[index]) {
+            message = "You do not own " + playerCreatures[index].getName() + ".";
+            return;
+        }
+        if (index == activePlayerIndex) {
+            if (openingBeastChoiceRequired) {
+                openingBeastChoiceRequired = false;
+                playerMenuMode = PlayerMenuMode.COMMAND;
+                message = "Your turn. Choose an action.";
+                return;
+            }
+            message = playerCreatures[index].getName() + " is already active.";
+            return;
+        }
+        activePlayerIndex = index;
         BattleCreature playerCreature = getActivePlayerCreature();
         playerCreature.recoverEnergy(4);
+        playerMenuMode = PlayerMenuMode.COMMAND;
+        if (openingBeastChoiceRequired) {
+            openingBeastChoiceRequired = false;
+            message = "Sent out " + playerCreature.getName() + ". Your turn.";
+            return;
+        }
         message = "Switched to " + playerCreature.getName() + ".";
         beginEnemyThinking();
     }
@@ -378,8 +488,7 @@ public class BattleSystem {
             message = "Cannot catch at 0 HP.";
             return;
         }
-        int hpPercent = (enemyCreature.getHp() * 100) / enemyCreature.getMaxHp();
-        int catchChance = Math.max(10, 95 - hpPercent);
+        int catchChance = 100;
         if (random.nextInt(100) < catchChance) {
             pendingCaughtCreatureName = enemyCreature.getName();
             enterResult("Caught " + enemyCreature.getName() + "!");
@@ -541,10 +650,41 @@ public class BattleSystem {
             } else if (i == 3) {
                 g2d.drawString("Beast Card", bx + 8, by + 29);
             } else if (i == 4) {
-                g2d.drawString("+EN / -CD", bx + 8, by + 29);
+                g2d.drawString("Choose beast", bx + 8, by + 29);
             } else {
                 String runHint = battleType == BattleType.PLAYER ? "No PvP escape" : "Escape";
                 g2d.drawString(runHint, bx + 8, by + 29);
+            }
+        }
+    }
+
+    private void drawSwitchButtons(Graphics2D g2d, int commandBoxX, int commandBoxY, int commandBoxW) {
+        int btnY = commandBoxY + 40;
+        int gap = 8;
+        int btnW = (commandBoxW - 24 - gap * 2) / 3;
+        int btnH = 96;
+        int startX = commandBoxX + 12;
+        for (int i = 0; i < playerCreatures.length; i++) {
+            int bx = startX + i * (btnW + gap);
+            int by = btnY;
+            switchButtons[i] = new Rectangle(bx, by, btnW, btnH);
+            BattleCreature creature = playerCreatures[i];
+            boolean isActive = i == activePlayerIndex;
+            boolean owned = ownedPlayerCreatures[i];
+            g2d.setColor(isActive ? new Color(54, 82, 120, 230) : new Color(26, 30, 42, 220));
+            g2d.fillRoundRect(bx, by, btnW, btnH, 8, 8);
+            g2d.setColor(new Color(215, 215, 220));
+            g2d.drawRoundRect(bx, by, btnW, btnH, 8, 8);
+            g2d.setColor(owned ? Color.WHITE : new Color(155, 155, 155));
+            g2d.drawString((i + 1) + " " + creature.getName(), bx + 8, by + 18);
+            g2d.drawString("HP " + creature.getHp() + "/" + creature.getMaxHp(), bx + 8, by + 38);
+            g2d.drawString("EN " + creature.getEnergy() + "/" + creature.getMaxEnergy(), bx + 8, by + 54);
+            if (!owned) {
+                g2d.drawString("LOCKED", bx + 8, by + 72);
+            } else if (isActive) {
+                g2d.drawString("ACTIVE", bx + 8, by + 72);
+            } else {
+                g2d.drawString("Switch", bx + 8, by + 72);
             }
         }
     }
@@ -694,12 +834,8 @@ public class BattleSystem {
         return out;
     }
 
-    private BattleCreature createRandomWild() {
-        int roll = random.nextInt(4);
-        if (roll == 0) return new BattleCreature("Nokami", 30, 10, 7, 4);
-        if (roll == 1) return new BattleCreature("Vineratops", 34, 9, 9, 5);
-        if (roll == 2) return new BattleCreature("Voltchu", 28, 11, 6, 5);
-        return new BattleCreature("Pirrot", 26, 12, 5, 6);
+    private BattleCreature createWildByName(String name) {
+        return BeastCatalog.createCreature(name);
     }
 
     private String getDamageEstimateText(BattleMove move) {

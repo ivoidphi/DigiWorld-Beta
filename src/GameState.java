@@ -2,5 +2,8 @@ public enum GameState {
     EXPLORATION,
     NPC_MENU,
     BATTLE,
-    INVENTORY
+    INVENTORY,
+    STARTER_SELECT,
+    ENEMY_SELECT,
+    DIALOGUE
 }

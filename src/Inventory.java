@@ -4,9 +4,11 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.imageio.ImageIO;
 
 public class Inventory {
@@ -24,7 +26,13 @@ public class Inventory {
         if (beastName == null || beastName.isBlank()) {
             return;
         }
-        beasts.add(beastName.trim());
+        String normalized = beastName.trim();
+        for (String beast : beasts) {
+            if (beast.equalsIgnoreCase(normalized)) {
+                return;
+            }
+        }
+        beasts.add(normalized);
         if (beasts.size() == 1) {
             selectedIndex = 0;
         }
@@ -54,8 +62,14 @@ public class Inventory {
         return beasts.size();
     }
 
+    public Set<String> getOwnedBeastNames() {
+        Set<String> owned = new LinkedHashSet<>();
+        owned.addAll(beasts);
+        return owned;
+    }
+
     public void render(Graphics2D g2d, int logicalWidth, int logicalHeight) {
-        int boxWidth = Math.min(500, logicalWidth - 80);
+        int boxWidth = Math.min(620, logicalWidth - 70);
         int boxHeight = Math.min(280, logicalHeight - 80);
         int x = (logicalWidth - boxWidth) / 2;
         int y = (logicalHeight - boxHeight) / 2;
@@ -75,6 +89,7 @@ public class Inventory {
 
         int listStartY = y + 50;
         int iconSize = 14;
+        int listWidth = (int) (boxWidth * 0.48);
         for (int i = 0; i < beasts.size(); i++) {
             int rowY = listStartY + i * 20;
             if (rowY > y + boxHeight - 30) {
@@ -82,7 +97,7 @@ public class Inventory {
             }
             if (i == selectedIndex) {
                 g2d.setColor(new Color(255, 255, 255, 45));
-                g2d.fillRoundRect(x + 10, rowY - 13, boxWidth - 20, 18, 6, 6);
+                g2d.fillRoundRect(x + 10, rowY - 13, listWidth - 18, 18, 6, 6);
                 g2d.setColor(Color.WHITE);
             } else {
                 g2d.setColor(new Color(220, 220, 220));
@@ -96,6 +111,38 @@ public class Inventory {
             }
             g2d.drawString((i + 1) + ". " + beastName, textX, rowY);
         }
+
+        String selected = getSelectedBeast();
+        if (!selected.isEmpty()) {
+            drawStatsPanel(g2d, x + listWidth, y + 42, boxWidth - listWidth - 14, boxHeight - 56, selected);
+        }
+    }
+
+    private void drawStatsPanel(Graphics2D g2d, int x, int y, int width, int height, String beastName) {
+        g2d.setColor(new Color(28, 33, 46, 210));
+        g2d.fillRoundRect(x, y, width, height, 8, 8);
+        g2d.setColor(new Color(220, 220, 230));
+        g2d.drawRoundRect(x, y, width, height, 8, 8);
+
+        BeastCatalog.BeastTemplate template = BeastCatalog.findByName(beastName);
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(UIFont.bold(12f));
+        g2d.drawString(beastName + " Stats", x + 10, y + 22);
+        g2d.setFont(UIFont.regular(11f));
+
+        if (template == null) {
+            g2d.drawString("No stat profile found.", x + 10, y + 44);
+            return;
+        }
+
+        BattleCreature creature = BeastCatalog.createCreature(beastName);
+        int lineY = y + 44;
+        int step = 18;
+        g2d.drawString("Level: " + template.level(), x + 10, lineY); lineY += step;
+        g2d.drawString("HP: " + creature.getHp() + "/" + creature.getMaxHp(), x + 10, lineY); lineY += step;
+        g2d.drawString("Attack: " + creature.getAttack(), x + 10, lineY); lineY += step;
+        g2d.drawString("Defense: " + creature.getDefense(), x + 10, lineY); lineY += step;
+        g2d.drawString("Energy: " + creature.getEnergy() + "/" + creature.getMaxEnergy(), x + 10, lineY);
     }
 
     private BufferedImage getBeastIcon(String beastName) {
