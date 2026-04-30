@@ -7,6 +7,7 @@ import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -19,7 +20,7 @@ public class BattleSystem {
     private enum TurnPhase { PLAYER_TURN, ENEMY_THINKING, PLAYER_THINKING }
     private enum PlayerMenuMode { COMMAND, SWITCH_SELECT }
 
-    private static final double THINK_DURATION_SECONDS = 3.0;
+    private static final double THINK_DURATION_SECONDS = 2.0;
     private static final double INTRO_DURATION_SECONDS = 1.2;
     private static final double OUTRO_DURATION_SECONDS = 0.75;
     private static final double RESULT_DURATION_SECONDS = 1.8;
@@ -37,9 +38,9 @@ public class BattleSystem {
     private static final int GROUND_Y_OFFSET = -12;
 
     private final Random random = new Random();
-    private final BattleCreature[] playerCreatures;
-    private final BufferedImage[] playerBattleSprites;
-    private final BufferedImage[] playerBattleSpritesHit;
+    private BattleCreature[] playerCreatures;
+    private BufferedImage[] playerBattleSprites;
+    private BufferedImage[] playerBattleSpritesHit;
     private int activePlayerIndex;
     private BattleCreature enemyCreature;
     private BattleType battleType;
@@ -81,21 +82,10 @@ public class BattleSystem {
         beastSpriteCache = new HashMap<>();
         beastSpriteHitCache = new HashMap<>();
 
-        playerCreatures = new BattleCreature[]{
-                BeastCatalog.createCreature("Nokami"),
-                BeastCatalog.createCreature("Vineratops"),
-                BeastCatalog.createCreature("Kyoflare")
-        };
-        playerBattleSprites = new BufferedImage[]{
-                loadSprite("res/beasts/nokami/nokami-fw.png"),
-                loadSprite("res/beasts/vineratops/vineratops-fw.png"),
-                loadSprite("res/beasts/kyoflare/kyoflare-fw.png")
-        };
-        playerBattleSpritesHit = new BufferedImage[]{
-                createRedTintedSprite(playerBattleSprites[0]),
-                createRedTintedSprite(playerBattleSprites[1]),
-                createRedTintedSprite(playerBattleSprites[2])
-        };
+        playerCreatures = new BattleCreature[0];
+        playerBattleSprites = new BufferedImage[0];
+        playerBattleSpritesHit = new BufferedImage[0];
+        setPlayerParty(new String[]{"Nokami", "Vineratops", "Kyoflare"});
         activePlayerIndex = 0;
 
         enemyBattleSprite = null;
@@ -156,6 +146,29 @@ public class BattleSystem {
                 return;
             }
         }
+    }
+
+    public void setPlayerParty(String[] beastNames) {
+        if (beastNames == null || beastNames.length == 0) {
+            return;
+        }
+        int partySize = Math.min(3, beastNames.length);
+        BattleCreature[] newCreatures = new BattleCreature[partySize];
+        BufferedImage[] newSprites = new BufferedImage[partySize];
+        BufferedImage[] newHitSprites = new BufferedImage[partySize];
+        for (int i = 0; i < partySize; i++) {
+            String name = beastNames[i] == null || beastNames[i].isBlank() ? "Nokami" : beastNames[i].trim();
+            newCreatures[i] = BeastCatalog.createCreature(name);
+            newSprites[i] = getBattleSpriteForCreature(name);
+            newHitSprites[i] = createRedTintedSprite(newSprites[i]);
+        }
+        playerCreatures = newCreatures;
+        playerBattleSprites = newSprites;
+        playerBattleSpritesHit = newHitSprites;
+        activePlayerIndex = 0;
+        ownedPlayerCreatures = new boolean[partySize];
+        Arrays.fill(ownedPlayerCreatures, true);
+        switchButtons = new Rectangle[partySize];
     }
 
     public void setOwnedBeasts(Set<String> ownedBeasts) {

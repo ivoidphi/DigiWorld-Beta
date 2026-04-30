@@ -28,10 +28,10 @@ public class Player extends Entity {
         this.tileSize = tileSize;
         this.speedPixelsPerSecond = 84.0;
         this.facing = Facing.FORWARD;
-        this.spriteForward = loadSprite("res/characters/chief-rei/chiefrei-fw.png");
-        this.spriteBack = loadSprite("res/characters/chief-rei/chiefrei-b.png");
-        this.spriteLeft = loadSprite("res/characters/chief-rei/chiefrei-l.png");
-        this.spriteRight = loadSprite("res/characters/chief-rei/chiefrei-r.png");
+        this.spriteForward = loadSprite("res/characters/player/player-fw.png");
+        this.spriteBack = loadSprite("res/characters/player/player-b.png");
+        this.spriteLeft = loadSprite("res/characters/player/player-l.png");
+        this.spriteRight = loadSprite("res/characters/player/player-r.png");
     }
 
     @Override

@@ -2,9 +2,16 @@ public final class BeastCatalog {
     public record BeastTemplate(String name, int baseHp, int baseAttack, int baseDefense, int level) {}
 
     private static final BeastTemplate[] TEMPLATES = new BeastTemplate[]{
-            new BeastTemplate("Nokami", 38, 12, 8, 5),
-            new BeastTemplate("Vineratops", 46, 10, 11, 5),
-            new BeastTemplate("Kyoflare", 34, 14, 7, 5)
+            new BeastTemplate("Kyoflare", 95, 120, 70, 1),
+            new BeastTemplate("Nokami", 100, 95, 70, 1),
+            new BeastTemplate("Vineratops", 140, 85, 125, 1),
+            new BeastTemplate("Voltchu", 100, 100, 65, 1),
+            new BeastTemplate("Zyuugor", 150, 65, 130, 1),
+            new BeastTemplate("Pirrot", 105, 90, 65, 1),
+            new BeastTemplate("Gekuma", 110, 105, 85, 1),
+            new BeastTemplate("Shadefox", 95, 115, 60, 1),
+            new BeastTemplate("Kingmantis", 140, 150, 65, 1),
+            new BeastTemplate("Woltrix", 150, 160, 130, 1)
     };
 
     private BeastCatalog() {}

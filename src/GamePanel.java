@@ -13,6 +13,7 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -55,6 +56,7 @@ public class GamePanel extends JPanel implements Runnable {
     private int starterSelectionIndex;
     private int enemySelectionIndex;
     private boolean starterChosen;
+    private final LinkedHashSet<Integer> selectedStarterIndices;
     private static final String PLAYER_NAME = "Chief Rei";
     private static final boolean CHEATS_ENABLED = false;
     private final DialogueController dialogueController;
@@ -65,6 +67,7 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean genEdDialogueCompleted;
     private boolean starterSequenceCompleted;
     private int storyStage;
+    private boolean pendingAlphaArrivalDialogue;
     private Npc speechBubbleNpc;
     private String speechBubbleText;
     private double speechBubbleTimer;
@@ -107,10 +110,14 @@ public class GamePanel extends JPanel implements Runnable {
                 "Kyoflare", "Nokami", "Vineratops", "Voltchu", "Zyuugor",
                 "Pirrot", "Gekuma", "Shadefox", "Kingmantis"
         };
-        enemyChoices = new String[]{"Nokami", "Vineratops", "Kyoflare"};
+        enemyChoices = new String[]{
+                "Kyoflare", "Nokami", "Vineratops", "Voltchu", "Zyuugor",
+                "Pirrot", "Gekuma", "Shadefox", "Kingmantis", "Woltrix"
+        };
         starterSelectionIndex = 0;
         enemySelectionIndex = 0;
         starterChosen = false;
+        selectedStarterIndices = new LinkedHashSet<>();
         dialogueController = new DialogueController();
         dialogueFromGenEd = false;
         dialogueFromAlfredIntro = false;
@@ -119,6 +126,7 @@ public class GamePanel extends JPanel implements Runnable {
         genEdDialogueCompleted = false;
         starterSequenceCompleted = false;
         storyStage = 0;
+        pendingAlphaArrivalDialogue = false;
         speechBubbleNpc = null;
         speechBubbleText = "";
         speechBubbleTimer = 0.0;
@@ -182,6 +190,10 @@ public class GamePanel extends JPanel implements Runnable {
         } else if (gameState == GameState.ENEMY_SELECT) {
             handleEnemySelectionInput();
         } else {
+            if (pendingAlphaArrivalDialogue && "World 2 - Alpha Village".equalsIgnoreCase(current.getName())) {
+                startAlphaArrivalDialogue(current);
+                return;
+            }
             if (input.consumeJustPressed(KeyEvent.VK_B)) {
                 gameState = GameState.INVENTORY;
                 interactionMessage = "";
@@ -195,7 +207,7 @@ public class GamePanel extends JPanel implements Runnable {
             if (input.consumeJustPressed(KeyEvent.VK_E) && nearbyNpc != null) {
                 activeNpc = nearbyNpc;
                 if (isProfessorAlfred(activeNpc, current)) {
-                    if (storyStage == 0) {
+                    if ("Hometown".equalsIgnoreCase(current.getName()) && storyStage == 0) {
                         DialogueSequence script = DialogueFactory.createSequence(
                                 new String[]{"Prof Alfred", PLAYER_NAME, "Prof Alfred"},
                                 new String[]{
@@ -206,13 +218,21 @@ public class GamePanel extends JPanel implements Runnable {
                         );
                         activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
                         startDialogue(script, false, true, false);
-                    } else if (storyStage == 2 && !starterSequenceCompleted) {
+                    } else if ("Hometown".equalsIgnoreCase(current.getName()) && storyStage == 2 && !starterSequenceCompleted) {
                         DialogueSequence script = DialogueFactory.createSequence(
                                 new String[]{"Prof Alfred"},
-                                new String[]{"Excellent! Now before we transport you, you will need this G-Watch, Mech-driver and Beast-Cards. Choose your starter from the available Mecha Beasts."}
+                                new String[]{"Excellent! Now before we transport you, you will need this G-Watch, Mech-driver and Beast-Cards. Choose 3 out of these 10 Mecha Beasts."}
                         );
                         activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
                         startDialogue(script, false, false, true);
+                    } else if ("Hometown".equalsIgnoreCase(current.getName()) && starterSequenceCompleted) {
+                        interactionMenuOpen = true;
+                        gameState = GameState.NPC_MENU;
+                        interactionMessage = "Prof Alfred: Choose destination.";
+                    } else if ("World 2 - Alpha Village".equalsIgnoreCase(current.getName()) && starterSequenceCompleted) {
+                        interactionMenuOpen = true;
+                        gameState = GameState.NPC_MENU;
+                        interactionMessage = "Prof Alfred: Choose destination.";
                     } else {
                         showNpcSpeechBubble(activeNpc, "I got nothing for you buddy", 2.6);
                         activeNpc.endInteraction();
@@ -283,6 +303,40 @@ public class GamePanel extends JPanel implements Runnable {
         gameState = GameState.DIALOGUE;
     }
 
+    private void startAlphaArrivalDialogue(World world) {
+        Npc chiefRei = findNpcByName(world, "Chief Rei");
+        if (chiefRei != null) {
+            activeNpc = chiefRei;
+            activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
+        }
+        DialogueSequence script = DialogueFactory.createSequence(
+                new String[]{"Prof Alfred", PLAYER_NAME, "Prof Alfred", PLAYER_NAME, PLAYER_NAME, "Chief Rei", PLAYER_NAME},
+                new String[]{
+                        "Welcome to the beta test. Your first mission is to reach Alpha Village and challenge the Alpha Beast. Your G Watch has the map, so just follow the route. Since this is still in beta, you might encounter bugs. Report them if you do. One more thing... you will feel pain, just like in real life. But remember, you will not die.",
+                        "Wait... what? Pain? You didn't say anything about that!",
+                        "Good luck. The future of gaming and your legacy are in your hands.",
+                        "Did he just cut me off? Ugh, fine. No turning back now.",
+                        "Hello? Anyone here?",
+                        "Welcome, traveler. I am Chief Rei, guardian of this village. The Alpha Beast is beyond the Mystic Forest. Be prepared.",
+                        "Thank you, Chief."
+                }
+        );
+        pendingAlphaArrivalDialogue = false;
+        startDialogue(script, false, false, false);
+    }
+
+    private Npc findNpcByName(World world, String name) {
+        if (world == null || name == null) {
+            return null;
+        }
+        for (Npc npc : world.getNpcs()) {
+            if (name.equalsIgnoreCase(npc.getName())) {
+                return npc;
+            }
+        }
+        return null;
+    }
+
 
     private void handleDialogueInputAndTyping(double deltaSeconds) {
         if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
@@ -347,13 +401,13 @@ public class GamePanel extends JPanel implements Runnable {
         }
 
         if (input.consumeJustPressed(KeyEvent.VK_1)) {
-            if (isProfessorAlfred(activeNpc, current)) {
+            if (isProfessorAlfred(activeNpc, current) && "Hometown".equalsIgnoreCase(current.getName()) && !starterSequenceCompleted) {
                 gameState = GameState.STARTER_SELECT;
                 interactionMenuOpen = false;
-                interactionMessage = "Prof Alfred: Choose your starter beast.";
+                interactionMessage = "Prof Alfred: Choose your 3 starter beasts.";
                 return;
-            } else if (canTeleportNext(activeNpc, current) && canGoNextWorld()) {
-                worldIndex++;
+            } else if (isProfessorAlfred(activeNpc, current) && starterSequenceCompleted) {
+                worldIndex = "Hometown".equalsIgnoreCase(current.getName()) ? 1 : 0;
                 respawnAtWorldStart();
                 interactionMessage = "Teleported to " + worlds[worldIndex].getName();
             } else if (activeNpc != null && hasDialogue(activeNpc)) {
@@ -369,8 +423,8 @@ public class GamePanel extends JPanel implements Runnable {
         }
 
         if (input.consumeJustPressed(KeyEvent.VK_2)) {
-            if (isProfessorAlfred(activeNpc, current) && canGoNextWorld()) {
-                worldIndex++;
+            if (isProfessorAlfred(activeNpc, current) && starterSequenceCompleted) {
+                worldIndex = "Hometown".equalsIgnoreCase(current.getName()) ? 0 : 1;
                 respawnAtWorldStart();
                 interactionMessage = "Teleported to " + worlds[worldIndex].getName();
                 if (activeNpc != null) {
@@ -440,22 +494,37 @@ public class GamePanel extends JPanel implements Runnable {
         if (input.consumeJustPressed(KeyEvent.VK_8) && starterChoices.length > 7) starterSelectionIndex = 7;
         if (input.consumeJustPressed(KeyEvent.VK_9) && starterChoices.length > 8) starterSelectionIndex = 8;
         if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
-            String chosen = starterChoices[starterSelectionIndex];
-            if (starterSelectionIndex >= 3 && starterSelectionIndex != 8) {
-                interactionMessage = chosen + " is not available yet in this build.";
+            if (selectedStarterIndices.contains(starterSelectionIndex)) {
+                selectedStarterIndices.remove(starterSelectionIndex);
+                interactionMessage = starterChoices[starterSelectionIndex] + " removed. Pick 3 beasts.";
                 return;
             }
-            if (starterSelectionIndex == 8 && !CHEATS_ENABLED) {
-                interactionMessage = "Kingmantis is locked. Enable cheats to select it.";
+            if (selectedStarterIndices.size() >= 3) {
+                interactionMessage = "You can only choose 3 starters.";
                 return;
             }
-            battleSystem.setStarterBeast(chosen);
-            inventory.addBeast(chosen);
+            selectedStarterIndices.add(starterSelectionIndex);
+            if (selectedStarterIndices.size() < 3) {
+                interactionMessage = starterChoices[starterSelectionIndex] + " selected (" + selectedStarterIndices.size() + "/3).";
+                return;
+            }
+
+            String[] party = new String[3];
+            int i = 0;
+            for (Integer idx : selectedStarterIndices) {
+                String beast = starterChoices[idx];
+                party[i++] = beast;
+                inventory.addBeast(beast);
+            }
+            battleSystem.setPlayerParty(party);
+            battleSystem.setStarterBeast(party[0]);
             starterChosen = true;
             starterSequenceCompleted = true;
-            interactionMessage = "Starter chosen: " + chosen + ". Teleporting to Alpha Village.";
+            selectedStarterIndices.clear();
+            interactionMessage = "3 starters chosen. Teleporting to Alpha Village.";
             worldIndex = 1;
             respawnAtWorldStart();
+            pendingAlphaArrivalDialogue = true;
             gameState = GameState.EXPLORATION;
             if (activeNpc != null) {
                 activeNpc.endInteraction();
@@ -481,6 +550,13 @@ public class GamePanel extends JPanel implements Runnable {
         if (input.consumeJustPressed(KeyEvent.VK_1)) enemySelectionIndex = 0;
         if (input.consumeJustPressed(KeyEvent.VK_2) && enemyChoices.length > 1) enemySelectionIndex = 1;
         if (input.consumeJustPressed(KeyEvent.VK_3) && enemyChoices.length > 2) enemySelectionIndex = 2;
+        if (input.consumeJustPressed(KeyEvent.VK_4) && enemyChoices.length > 3) enemySelectionIndex = 3;
+        if (input.consumeJustPressed(KeyEvent.VK_5) && enemyChoices.length > 4) enemySelectionIndex = 4;
+        if (input.consumeJustPressed(KeyEvent.VK_6) && enemyChoices.length > 5) enemySelectionIndex = 5;
+        if (input.consumeJustPressed(KeyEvent.VK_7) && enemyChoices.length > 6) enemySelectionIndex = 6;
+        if (input.consumeJustPressed(KeyEvent.VK_8) && enemyChoices.length > 7) enemySelectionIndex = 7;
+        if (input.consumeJustPressed(KeyEvent.VK_9) && enemyChoices.length > 8) enemySelectionIndex = 8;
+        if (input.consumeJustPressed(KeyEvent.VK_0) && enemyChoices.length > 9) enemySelectionIndex = 9;
         if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
             battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
             battleSystem.startWildBattle(enemyChoices[enemySelectionIndex]);
@@ -554,15 +630,15 @@ public class GamePanel extends JPanel implements Runnable {
                 }),
                 new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
                         new Npc(
-                                "Ace Jazz",
+                                "Chief Rei",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(93, 177, 214),
                                 new int[][]{{26, 19}, {28, 19}, {28, 21}, {26, 21}},
-                                "res/characters/ace-jazz/acejazz-fw.png",
-                                "res/characters/ace-jazz/acejazz-b.png",
-                                "res/characters/ace-jazz/acejazz-l.png",
-                                "res/characters/ace-jazz/acejazz-r.png"
+                                "res/characters/chief-rei/chiefrei-fw.png",
+                                "res/characters/chief-rei/chiefrei-b.png",
+                                "res/characters/chief-rei/chiefrei-l.png",
+                                "res/characters/chief-rei/chiefrei-r.png"
                         ),
                         new Npc("Prof Alfred", TILE_SIZE, TILE_SIZE, new Color(214, 93, 177), new int[][]{{22, 18}, {24, 18}, {24, 20}, {22, 20}},
                                 "res/characters/professor-alfred/profalfred-fw.png",
@@ -859,10 +935,13 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setFont(UIFont.regular(12f));
         String menuNpcName = activeNpc != null ? activeNpc.getName() : "NPC";
         g2d.drawString(menuNpcName + " Menu", x + 14, y + 24);
-        if (isProfessorAlfred(activeNpc, worlds[worldIndex])) {
-            g2d.drawString("1: Choose starter beast", x + 14, y + 50);
-            if (canGoNextWorld()) {
-                g2d.drawString("2: Go to Alpha Village", x + 14, y + 70);
+        if (isProfessorAlfred(activeNpc, worlds[worldIndex]) && !starterSequenceCompleted) {
+            g2d.drawString("1: Choose 3 starter beasts", x + 14, y + 50);
+        } else if (isProfessorAlfred(activeNpc, worlds[worldIndex]) && starterSequenceCompleted) {
+            if ("Hometown".equalsIgnoreCase(worlds[worldIndex].getName())) {
+                g2d.drawString("1: Go to Alpha Village", x + 14, y + 50);
+            } else {
+                g2d.drawString("1: Go to Hometown", x + 14, y + 50);
             }
         } else if (activeNpc != null && canTeleportNext(activeNpc, worlds[worldIndex]) && canGoNextWorld()) {
             g2d.drawString("1: Go to Alpha Village", x + 14, y + 50);
@@ -879,7 +958,6 @@ public class GamePanel extends JPanel implements Runnable {
 
     private boolean canTeleportNext(Npc npc, World world) {
         return npc != null
-                && "Hometown".equalsIgnoreCase(world.getName())
                 && "Prof Alfred".equalsIgnoreCase(npc.getName());
     }
 
@@ -946,8 +1024,8 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices, int selectedIndex) {
-        int boxWidth = Math.min(560, LOGICAL_WIDTH - 60);
-        int boxHeight = Math.min(290, LOGICAL_HEIGHT - 40);
+        int boxWidth = Math.min(760, LOGICAL_WIDTH - 40);
+        int boxHeight = Math.min(420, LOGICAL_HEIGHT - 30);
         int x = (LOGICAL_WIDTH - boxWidth) / 2;
         int y = (LOGICAL_HEIGHT - boxHeight) / 2;
 
@@ -963,45 +1041,52 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setFont(UIFont.regular(11f));
         g2d.drawString(subtitle, x + 16, y + 44);
 
-        int cardGap = 12;
-        int cardWidth = (boxWidth - 32 - cardGap * 2) / 3;
-        int cardHeight = 116;
+        int cardGap = 8;
+        int columns = 5;
+        int cardWidth = (boxWidth - 32 - cardGap * (columns - 1)) / columns;
+        int cardHeight = 122;
         int cardY = y + 58;
-        int visualCount = Math.min(3, choices.length);
-        for (int i = 0; i < visualCount; i++) {
-            int cardX = x + 16 + i * (cardWidth + cardGap);
+        for (int i = 0; i < choices.length; i++) {
+            int row = i / columns;
+            int col = i % columns;
+            int cardX = x + 16 + col * (cardWidth + cardGap);
+            int drawY = cardY + row * (cardHeight + 8);
             boolean selected = i == selectedIndex;
+            boolean partySelected = selectedStarterIndices.contains(i) && gameState == GameState.STARTER_SELECT;
             g2d.setColor(selected ? new Color(58, 75, 127, 235) : new Color(31, 35, 58, 220));
-            g2d.fillRoundRect(cardX, cardY, cardWidth, cardHeight, 8, 8);
+            g2d.fillRoundRect(cardX, drawY, cardWidth, cardHeight, 8, 8);
             g2d.setColor(selected ? new Color(255, 236, 171) : new Color(185, 185, 200));
-            g2d.drawRoundRect(cardX, cardY, cardWidth, cardHeight, 8, 8);
+            g2d.drawRoundRect(cardX, drawY, cardWidth, cardHeight, 8, 8);
+            if (partySelected) {
+                g2d.setColor(new Color(120, 255, 160));
+                g2d.drawRoundRect(cardX + 1, drawY + 1, cardWidth - 2, cardHeight - 2, 8, 8);
+            }
 
             BufferedImage sprite = battleSystem.getCreatureSprite(choices[i]);
             if (sprite != null) {
-                g2d.drawImage(sprite, cardX + 20, cardY + 12, cardWidth - 40, 64, null);
+                g2d.drawImage(sprite, cardX + 12, drawY + 8, cardWidth - 24, 50, null);
             }
             g2d.setColor(Color.WHITE);
-            g2d.setFont(UIFont.bold(12f));
-            g2d.drawString((i + 1) + ". " + choices[i], cardX + 10, cardY + 92);
-            g2d.setFont(UIFont.regular(10f));
-            g2d.drawString(selected ? "Selected" : "Pick", cardX + 10, cardY + 108);
-        }
+            g2d.setFont(UIFont.bold(10f));
+            g2d.drawString((i + 1) + ". " + choices[i], cardX + 6, drawY + 69);
 
-        int listX = x + 16;
-        int listY = cardY + cardHeight + 16;
-        g2d.setFont(UIFont.regular(10f));
-        for (int i = 0; i < choices.length; i++) {
-            boolean selected = i == selectedIndex;
-            boolean locked = i >= 3 && i != 8;
-            boolean cheatLocked = i == 8 && !CHEATS_ENABLED;
-            g2d.setColor(selected ? new Color(255, 236, 171) : new Color(220, 220, 230));
-            String suffix = locked ? " (Not available)" : (cheatLocked ? " (Cheat only)" : "");
-            g2d.drawString((i + 1) + ". " + choices[i] + suffix, listX, listY + i * 12);
+            BeastCatalog.BeastTemplate stats = BeastCatalog.findByName(choices[i]);
+            g2d.setFont(UIFont.regular(9f));
+            if (stats != null) {
+                g2d.drawString("Lv " + stats.level() + " HP " + stats.baseHp(), cardX + 6, drawY + 84);
+                g2d.drawString("ATK " + stats.baseAttack() + " DEF " + stats.baseDefense(), cardX + 6, drawY + 96);
+            }
+            String label = partySelected ? "Chosen" : (selected ? "Selected" : "Pick");
+            g2d.drawString(label, cardX + 6, drawY + 110);
         }
 
         g2d.setColor(new Color(230, 230, 240));
         g2d.setFont(UIFont.regular(10f));
-        g2d.drawString("W/S or A/D or 1-9 to choose | ENTER confirm | ESC cancel", x + 16, y + boxHeight - 10);
+        if (gameState == GameState.STARTER_SELECT) {
+            g2d.drawString("WASD/Arrows/1-9 move | ENTER add/remove | Pick 3 beasts | ESC cancel", x + 16, y + boxHeight - 10);
+        } else {
+            g2d.drawString("A/D or 1-3 choose | ENTER confirm | ESC cancel", x + 16, y + boxHeight - 10);
+        }
     }
 
     private void drawDialogueAboveNpc(Graphics2D g2d) {
