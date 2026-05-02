@@ -44,8 +44,8 @@ public class BattleSystem {
     private int activePlayerIndex;
     private BattleCreature enemyCreature;
     private BattleType battleType;
-    private final BattleMove[] playerMoves;
-    private final int[] playerMoveCooldowns;
+    private BattleMove[] playerMoves;
+    private int[] playerMoveCooldowns;
 
     private boolean active;
     private String message;
@@ -73,11 +73,7 @@ public class BattleSystem {
     private final Map<String, BufferedImage> beastSpriteHitCache;
 
     public BattleSystem() {
-        playerMoves = new BattleMove[]{
-                new BattleMove("Flare Slash", 45, 5, 1, StatusEffect.BURN, 0.25, BattleType.WILD),
-                new BattleMove("Shock Drive", 38, 4, 0, StatusEffect.PARALYZE, 0.2, BattleType.WILD),
-                new BattleMove("Fear Pulse", 30, 6, 2, StatusEffect.FEAR, 0.35, BattleType.WILD)
-        };
+        playerMoves = BeastCatalog.movesFor("Nokami");
         playerMoveCooldowns = new int[playerMoves.length];
         beastSpriteCache = new HashMap<>();
         beastSpriteHitCache = new HashMap<>();
@@ -169,6 +165,7 @@ public class BattleSystem {
         ownedPlayerCreatures = new boolean[partySize];
         Arrays.fill(ownedPlayerCreatures, true);
         switchButtons = new Rectangle[partySize];
+        refreshActiveMoves();
     }
 
     public void setOwnedBeasts(Set<String> ownedBeasts) {
@@ -295,7 +292,7 @@ public class BattleSystem {
                     enemyTurn();
                 } else {
                     turnPhase = TurnPhase.PLAYER_TURN;
-                    getActivePlayerCreature().recoverEnergy(2);
+                    getActivePlayerCreature().recoverEnergy(getActivePlayerCreature().getEnergyRegen());
                     message = "Your turn. Choose an action.";
                 }
             }
@@ -414,8 +411,9 @@ public class BattleSystem {
             return;
         }
         activePlayerIndex = index;
+        refreshActiveMoves();
         BattleCreature playerCreature = getActivePlayerCreature();
-        playerCreature.recoverEnergy(4);
+        playerCreature.recoverEnergy(playerCreature.getEnergyRegen());
         playerMenuMode = PlayerMenuMode.COMMAND;
         if (openingBeastChoiceRequired) {
             openingBeastChoiceRequired = false;
@@ -428,6 +426,7 @@ public class BattleSystem {
 
     private void useMove(int moveIndex) {
         BattleCreature playerCreature = getActivePlayerCreature();
+        refreshActiveMoves();
         BattleMove move = playerMoves[moveIndex];
         if (playerMoveCooldowns[moveIndex] > 0) {
             message = move.getName() + " is cooling down (" + playerMoveCooldowns[moveIndex] + " turn).";
@@ -443,14 +442,14 @@ public class BattleSystem {
             beginEnemyThinking();
             return;
         }
-        if (playerCreature.getStatusEffect() == StatusEffect.PARALYZE && random.nextDouble() < 0.3) {
+        if (playerCreature.getStatusEffect() == StatusEffect.PARALYZE && random.nextDouble() < 0.5) {
             message = "Paralyzed! You could not move.";
             playerCreature.tickStatus();
             beginEnemyThinking();
             return;
         }
 
-        int damage = computeDamage(playerCreature, enemyCreature, move.getPower(), move.getType());
+        int damage = computeDamage(playerCreature, enemyCreature, move.getPower(), move.getType(), move);
         enemyCreature.takeDamage(damage);
         enemyHitTimer = HIT_ANIM_DURATION_SECONDS;
         playerMoveCooldowns[moveIndex] = move.getCooldownTurns();
@@ -460,15 +459,11 @@ public class BattleSystem {
             enemyCreature.setStatus(move.getInflictEffect(), 2);
             turnMsg.append(" ").append(move.getInflictEffect().name()).append(" applied.");
         }
-        if (move.getInflictEffect() == StatusEffect.NONE && random.nextDouble() < 0.2) {
-            int aftershock = 3 + random.nextInt(4);
-            enemyCreature.takeDamage(aftershock);
-            turnMsg.append(" Aftershock +").append(aftershock).append(".");
-        }
+        applySpecialMoveEffect(playerCreature, enemyCreature, move, turnMsg);
         message = turnMsg.toString();
 
         if (enemyCreature.isFainted()) {
-            int expGain = 18 + enemyCreature.getLevel() * 6;
+            int expGain = expYieldForLevel(enemyCreature.getLevel());
             boolean leveled = playerCreature.addExp(expGain);
             String result = "You won the fight! +" + expGain + " EXP.";
             if (leveled) {
@@ -482,7 +477,6 @@ public class BattleSystem {
     }
 
     private void runAttempt() {
-        BattleCreature playerCreature = getActivePlayerCreature();
         if (battleType == BattleType.PLAYER) {
             message = "You cannot run from player battles.";
             return;
@@ -501,12 +495,15 @@ public class BattleSystem {
             message = "Cannot catch at 0 HP.";
             return;
         }
-        int catchChance = 100;
+        double maxHp = Math.max(1, enemyCreature.getMaxHp());
+        double currentHp = Math.max(1, enemyCreature.getHp());
+        double rawChance = (((3.0 * maxHp - 2.0 * currentHp) * 1.0) / (3.0 * maxHp)) * 0.75;
+        int catchChance = (int) Math.round(Math.max(0.05, Math.min(0.95, rawChance)) * 100.0);
         if (random.nextInt(100) < catchChance) {
             pendingCaughtCreatureName = enemyCreature.getName();
             enterResult("Caught " + enemyCreature.getName() + "!");
         } else {
-            message = "Catch failed!";
+            message = "Catch failed! (" + catchChance + "%)";
             beginEnemyThinking();
         }
     }
@@ -520,7 +517,7 @@ public class BattleSystem {
             message = "Enemy is afraid and skips the turn.";
             return;
         }
-        if (enemyCreature.getStatusEffect() == StatusEffect.PARALYZE && random.nextDouble() < 0.3) {
+        if (enemyCreature.getStatusEffect() == StatusEffect.PARALYZE && random.nextDouble() < 0.5) {
             enemyCreature.tickStatus();
             turnPhase = TurnPhase.PLAYER_THINKING;
             thinkTimer = THINK_DURATION_SECONDS;
@@ -528,13 +525,9 @@ public class BattleSystem {
             return;
         }
 
-        BattleMove[] enemyMoves = {
-                new BattleMove("Pulse Strike", 40, 0, 0, StatusEffect.NONE, 0, BattleType.WILD),
-                new BattleMove("Burn Claw", 35, 0, 0, StatusEffect.BURN, 0.22, BattleType.WILD),
-                new BattleMove("Shock Fang", 32, 0, 0, StatusEffect.PARALYZE, 0.18, BattleType.WILD)
-        };
+        BattleMove[] enemyMoves = BeastCatalog.movesFor(enemyCreature.getName());
         BattleMove enemyMove = enemyMoves[random.nextInt(enemyMoves.length)];
-        int damage = computeDamage(enemyCreature, playerCreature, enemyMove.getPower(), enemyMove.getType());
+        int damage = computeDamage(enemyCreature, playerCreature, enemyMove.getPower(), enemyMove.getType(), enemyMove);
         playerCreature.takeDamage(damage);
         playerHitTimer = HIT_ANIM_DURATION_SECONDS;
 
@@ -573,17 +566,21 @@ public class BattleSystem {
 
     private void applyEndTurnStatusDamage(BattleCreature creature) {
         if (creature.getStatusEffect() == StatusEffect.BURN) {
-            int burn = Math.max(1, creature.getMaxHp() / 14);
+            int burn = Math.max(1, (int) Math.round(creature.getMaxHp() * 0.50));
             creature.takeDamage(burn);
         }
     }
 
-    private int computeDamage(BattleCreature attacker, BattleCreature defender, int movePower, BattleType attackType) {
+    private int computeDamage(BattleCreature attacker, BattleCreature defender, int movePower, BeastElement attackType, BattleMove move) {
         double levelPart = ((2.0 * attacker.getLevel() / 5.0) + 2.0);
         double core = ((levelPart * movePower * (attacker.getAttack() / (double) Math.max(1, defender.getDefense()))) / 50.0) + 2.0;
-        double stab = 1.0;
-        double typeEffect = (attackType == BattleType.WILD) ? 1.0 : 1.0;
-        double crit = random.nextDouble() < 0.1 ? 1.5 : 1.0;
+        double stab = (attackType != BeastElement.NEUTRAL && attackType == attacker.getElement()) ? 1.5 : 1.0;
+        double typeEffect = typeEffectiveness(attackType, defender.getElement());
+        double critRate = 0.25;
+        if (move != null && move.getMoveEffect() == MoveEffect.HIGH_CRIT) {
+            critRate = Math.min(1.0, critRate + move.getEffectValue());
+        }
+        double crit = random.nextDouble() < critRate ? 1.5 : 1.0;
         double randomFactor = 0.85 + random.nextDouble() * 0.15;
         int dmg = (int) Math.round(core * stab * typeEffect * crit * randomFactor);
         return Math.max(2, dmg);
@@ -642,7 +639,12 @@ public class BattleSystem {
         int btnW = (commandBoxW - 24 - gap * 2) / 3;
         int btnH = 46;
         int startX = commandBoxX + 12;
-        String[] labels = {"1 Skill A", "2 Skill B", "3 Skill C", "4 Catch", "5 Switch", "6 Run"};
+        String[] labels = {
+                "1 " + playerMoves[0].getName(),
+                "2 " + playerMoves[1].getName(),
+                "3 " + playerMoves[2].getName(),
+                "4 Catch", "5 Switch", "6 Run"
+        };
         for (int i = 0; i < 6; i++) {
             int row = i / 3;
             int col = i % 3;
@@ -858,9 +860,111 @@ public class BattleSystem {
         BattleCreature attacker = getActivePlayerCreature();
         double levelPart = ((2.0 * attacker.getLevel() / 5.0) + 2.0);
         double core = ((levelPart * move.getPower() * (attacker.getAttack() / (double) Math.max(1, enemyCreature.getDefense()))) / 50.0) + 2.0;
-        int minDamage = Math.max(2, (int) Math.round(core * 0.85));
-        int maxDamage = Math.max(2, (int) Math.round(core * 1.5));
+        double stab = (move.getType() != BeastElement.NEUTRAL && move.getType() == attacker.getElement()) ? 1.5 : 1.0;
+        double eff = typeEffectiveness(move.getType(), enemyCreature.getElement());
+        int minDamage = Math.max(2, (int) Math.round(core * stab * eff * 0.85));
+        int maxDamage = Math.max(2, (int) Math.round(core * stab * eff * 1.5 * 1.5));
         return "DMG: " + minDamage + "-" + maxDamage;
+    }
+
+    private void refreshActiveMoves() {
+        BattleCreature creature = getActivePlayerCreature();
+        playerMoves = BeastCatalog.movesFor(creature.getName());
+        playerMoveCooldowns = new int[playerMoves.length];
+    }
+
+    private int expYieldForLevel(int level) {
+        return switch (Math.max(1, Math.min(20, level))) {
+            case 1 -> 5;
+            case 2 -> 8;
+            case 3 -> 15;
+            case 4 -> 20;
+            case 5 -> 25;
+            case 6 -> 30;
+            case 7 -> 35;
+            case 8 -> 45;
+            case 9 -> 50;
+            case 10 -> 55;
+            case 11 -> 60;
+            case 12 -> 70;
+            case 13 -> 80;
+            case 14 -> 90;
+            case 15 -> 110;
+            case 16 -> 130;
+            case 17 -> 150;
+            case 18 -> 170;
+            case 19 -> 190;
+            default -> 220;
+        };
+    }
+
+    private void applySpecialMoveEffect(BattleCreature attacker, BattleCreature defender, BattleMove move, StringBuilder turnMsg) {
+        switch (move.getMoveEffect()) {
+            case HEAL_SELF_PERCENT_MAX_HP -> {
+                int heal = (int) Math.round(attacker.getMaxHp() * move.getEffectValue());
+                int healed = attacker.heal(heal);
+                turnMsg.append(" Healed ").append(Math.max(1, healed)).append(" HP.");
+            }
+            case LOWER_TARGET_ATTACK_PERCENT -> {
+                defender.lowerAttack(move.getEffectValue(), Math.max(1, move.getEffectTurns()));
+                turnMsg.append(" Target ATK down.");
+            }
+            case LOWER_TARGET_DEFENSE_PERCENT -> {
+                defender.lowerDefense(move.getEffectValue(), Math.max(1, move.getEffectTurns()));
+                turnMsg.append(" Target DEF down.");
+            }
+            case AFTERSHOCK_PERCENT_TARGET_MAX_HP -> {
+                if (random.nextDouble() <= move.getEffectChance()) {
+                    int bonus = (int) Math.round(defender.getMaxHp() * move.getEffectValue());
+                    defender.takeDamage(Math.max(1, bonus));
+                    turnMsg.append(" Aftershock +").append(Math.max(1, bonus)).append(".");
+                }
+            }
+            case EXTRA_HITS -> {
+                for (int i = 0; i < move.getExtraHits(); i++) {
+                    int hit = computeDamage(attacker, defender, Math.max(1, (int) Math.round(move.getPower() * move.getExtraHitPowerRatio())), move.getType(), null);
+                    defender.takeDamage(hit);
+                    turnMsg.append(" Extra hit ").append(i + 1).append(" +").append(hit).append(".");
+                    if (defender.isFainted()) {
+                        break;
+                    }
+                }
+            }
+            case EXTRA_HITS_CHANCE -> {
+                if (random.nextDouble() <= move.getEffectValue()) {
+                    int hit = computeDamage(attacker, defender, Math.max(1, (int) Math.round(move.getPower() * move.getExtraHitPowerRatio())), move.getType(), null);
+                    defender.takeDamage(hit);
+                    turnMsg.append(" Follow-up hit +").append(hit).append(".");
+                }
+            }
+            default -> {
+            }
+        }
+    }
+
+    private double typeEffectiveness(BeastElement moveType, BeastElement defenderType) {
+        if (moveType == BeastElement.NEUTRAL || defenderType == BeastElement.NEUTRAL) {
+            return 1.0;
+        }
+        if (moveType == BeastElement.FIRE && (defenderType == BeastElement.GRASS || defenderType == BeastElement.WIND || defenderType == BeastElement.STEEL)) return 2.0;
+        if (moveType == BeastElement.FIRE && (defenderType == BeastElement.WATER || defenderType == BeastElement.EARTH)) return 0.5;
+        if (moveType == BeastElement.WATER && (defenderType == BeastElement.FIRE || defenderType == BeastElement.EARTH)) return 2.0;
+        if (moveType == BeastElement.WATER && (defenderType == BeastElement.GRASS || defenderType == BeastElement.ELECTRIC)) return 0.5;
+        if (moveType == BeastElement.GRASS && (defenderType == BeastElement.WATER || defenderType == BeastElement.EARTH)) return 2.0;
+        if (moveType == BeastElement.GRASS && (defenderType == BeastElement.FIRE || defenderType == BeastElement.WIND)) return 0.5;
+        if (moveType == BeastElement.ELECTRIC && (defenderType == BeastElement.WATER || defenderType == BeastElement.WIND)) return 2.0;
+        if (moveType == BeastElement.ELECTRIC && (defenderType == BeastElement.EARTH || defenderType == BeastElement.STEEL)) return 0.5;
+        if (moveType == BeastElement.EARTH && (defenderType == BeastElement.ELECTRIC || defenderType == BeastElement.STEEL || defenderType == BeastElement.FIRE)) return 2.0;
+        if (moveType == BeastElement.EARTH && (defenderType == BeastElement.WATER || defenderType == BeastElement.GRASS || defenderType == BeastElement.DARK)) return 0.5;
+        if (moveType == BeastElement.WIND && (defenderType == BeastElement.GRASS || defenderType == BeastElement.FIGHTING)) return 2.0;
+        if (moveType == BeastElement.WIND && (defenderType == BeastElement.FIRE || defenderType == BeastElement.ELECTRIC)) return 0.5;
+        if (moveType == BeastElement.FIGHTING && (defenderType == BeastElement.DARK || defenderType == BeastElement.STEEL)) return 2.0;
+        if (moveType == BeastElement.FIGHTING && (defenderType == BeastElement.WIND || defenderType == BeastElement.PSYCHIC)) return 0.5;
+        if (moveType == BeastElement.DARK && (defenderType == BeastElement.EARTH || defenderType == BeastElement.WIND)) return 2.0;
+        if (moveType == BeastElement.DARK && (defenderType == BeastElement.FIGHTING || defenderType == BeastElement.STEEL)) return 0.5;
+        if (moveType == BeastElement.STEEL && (defenderType == BeastElement.DARK || defenderType == BeastElement.ELECTRIC)) return 2.0;
+        if (moveType == BeastElement.STEEL && (defenderType == BeastElement.FIRE || defenderType == BeastElement.EARTH)) return 0.5;
+        return 1.0;
     }
 
     private static BufferedImage loadBeastSprite(String key) {

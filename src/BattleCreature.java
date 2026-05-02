@@ -3,27 +3,43 @@ public class BattleCreature {
     private final int baseHp;
     private final int baseAttack;
     private final int baseDefense;
+    private final int baseSpeed;
+    private final int baseEnergy;
+    private final int baseEnergyRegen;
+    private final BeastElement element;
     private int hp;
     private int level;
     private int exp;
     private int energy;
     private StatusEffect statusEffect;
     private int statusTurns;
+    private double attackModifier;
+    private int attackModifierTurns;
+    private double defenseModifier;
+    private int defenseModifierTurns;
 
     public BattleCreature(String name, int maxHp, int attack, int defense) {
-        this(name, maxHp, attack, defense, 5);
+        this(name, maxHp, attack, defense, 80, 100, 12, BeastElement.NEUTRAL, 1);
     }
 
-    public BattleCreature(String name, int maxHp, int attack, int defense, int level) {
+    public BattleCreature(String name, int maxHp, int attack, int defense, int speed, int maxEnergy, int energyRegen, BeastElement element, int level) {
         this.name = name;
         this.baseHp = maxHp;
         this.baseAttack = attack;
         this.baseDefense = defense;
+        this.baseSpeed = speed;
+        this.baseEnergy = maxEnergy;
+        this.baseEnergyRegen = energyRegen;
+        this.element = element;
         this.level = Math.max(1, level);
         this.exp = 0;
         this.energy = getMaxEnergy();
         this.statusEffect = StatusEffect.NONE;
         this.statusTurns = 0;
+        this.attackModifier = 1.0;
+        this.attackModifierTurns = 0;
+        this.defenseModifier = 1.0;
+        this.defenseModifierTurns = 0;
         this.hp = getMaxHp();
     }
 
@@ -40,6 +56,13 @@ public class BattleCreature {
         return applied;
     }
 
+    public int heal(int amount) {
+        int applied = Math.max(0, amount);
+        int before = hp;
+        hp = Math.min(getMaxHp(), hp + applied);
+        return hp - before;
+    }
+
     public boolean isFainted() {
         return hp <= 0;
     }
@@ -48,6 +71,7 @@ public class BattleCreature {
         hp = getMaxHp();
         energy = getMaxEnergy();
         clearStatus();
+        clearStatModifiers();
     }
 
     public String getName() {
@@ -55,7 +79,7 @@ public class BattleCreature {
     }
 
     public int getMaxHp() {
-        return baseHp + level * 3;
+        return ((2 * baseHp) * level / 20) + level + 10;
     }
 
     public int getHp() {
@@ -63,11 +87,17 @@ public class BattleCreature {
     }
 
     public int getAttack() {
-        return baseAttack + level;
+        int stat = ((2 * baseAttack) * level / 20) + 5;
+        return Math.max(1, (int) Math.round(stat * attackModifier));
     }
 
     public int getDefense() {
-        return baseDefense + (level / 2);
+        int stat = ((2 * baseDefense) * level / 20) + 5;
+        return Math.max(1, (int) Math.round(stat * defenseModifier));
+    }
+
+    public int getSpeed() {
+        return ((2 * baseSpeed) * level / 20) + 5;
     }
 
     public int getLevel() {
@@ -79,7 +109,7 @@ public class BattleCreature {
     }
 
     public int getExpToNextLevel() {
-        return 40 + (level * 20);
+        return (int) Math.floor(5.0 * level * level / 2.0);
     }
 
     public int getEnergy() {
@@ -87,7 +117,15 @@ public class BattleCreature {
     }
 
     public int getMaxEnergy() {
-        return 16 + level * 2;
+        return baseEnergy;
+    }
+
+    public int getEnergyRegen() {
+        return baseEnergyRegen;
+    }
+
+    public BeastElement getElement() {
+        return element;
     }
 
     public boolean spendEnergy(int cost) {
@@ -143,10 +181,43 @@ public class BattleCreature {
         if (statusTurns <= 0) {
             clearStatus();
         }
+        tickStatModifiers();
     }
 
     public void clearStatus() {
         statusEffect = StatusEffect.NONE;
         statusTurns = 0;
+    }
+
+    public void lowerAttack(double percent, int turns) {
+        attackModifier = Math.max(0.1, 1.0 - Math.max(0.0, percent));
+        attackModifierTurns = Math.max(1, turns);
+    }
+
+    public void lowerDefense(double percent, int turns) {
+        defenseModifier = Math.max(0.1, 1.0 - Math.max(0.0, percent));
+        defenseModifierTurns = Math.max(1, turns);
+    }
+
+    private void clearStatModifiers() {
+        attackModifier = 1.0;
+        attackModifierTurns = 0;
+        defenseModifier = 1.0;
+        defenseModifierTurns = 0;
+    }
+
+    private void tickStatModifiers() {
+        if (attackModifierTurns > 0) {
+            attackModifierTurns--;
+            if (attackModifierTurns == 0) {
+                attackModifier = 1.0;
+            }
+        }
+        if (defenseModifierTurns > 0) {
+            defenseModifierTurns--;
+            if (defenseModifierTurns == 0) {
+                defenseModifier = 1.0;
+            }
+        }
     }
 }

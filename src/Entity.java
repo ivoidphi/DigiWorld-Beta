@@ -75,4 +75,8 @@ public abstract class Entity {
     public int getVisualBobOffsetY() {
         return getBobOffsetY();
     }
+
+    public boolean isMoving() {
+        return moving;
+    }
 }
