@@ -13,11 +13,13 @@ import javax.imageio.ImageIO;
 
 public class Inventory {
     private final List<String> beasts;
+    private final LinkedHashSet<Integer> equippedIndices;
     private final Map<String, BufferedImage> iconCache;
     private int selectedIndex;
 
     public Inventory() {
         this.beasts = new ArrayList<>();
+        this.equippedIndices = new LinkedHashSet<>();
         this.iconCache = new HashMap<>();
         this.selectedIndex = 0;
     }
@@ -27,12 +29,10 @@ public class Inventory {
             return;
         }
         String normalized = beastName.trim();
-        for (String beast : beasts) {
-            if (beast.equalsIgnoreCase(normalized)) {
-                return;
-            }
-        }
         beasts.add(normalized);
+        if (equippedIndices.size() < 3) {
+            equippedIndices.add(beasts.size() - 1);
+        }
         if (beasts.size() == 1) {
             selectedIndex = 0;
         }
@@ -68,6 +68,31 @@ public class Inventory {
         return owned;
     }
 
+    public String[] getEquippedBeastNames() {
+        List<String> equipped = new ArrayList<>();
+        for (Integer idx : equippedIndices) {
+            if (idx != null && idx >= 0 && idx < beasts.size()) {
+                equipped.add(beasts.get(idx));
+            }
+        }
+        return equipped.toArray(new String[0]);
+    }
+
+    public String toggleEquippedSelected() {
+        if (beasts.isEmpty()) {
+            return "No beasts to equip.";
+        }
+        if (equippedIndices.contains(selectedIndex)) {
+            equippedIndices.remove(selectedIndex);
+            return beasts.get(selectedIndex) + " unequipped.";
+        }
+        if (equippedIndices.size() >= 3) {
+            return "You can only equip 3 beasts.";
+        }
+        equippedIndices.add(selectedIndex);
+        return beasts.get(selectedIndex) + " equipped (" + equippedIndices.size() + "/3).";
+    }
+
     public void render(Graphics2D g2d, int logicalWidth, int logicalHeight) {
         int boxWidth = Math.min(620, logicalWidth - 70);
         int boxHeight = Math.min(280, logicalHeight - 80);
@@ -80,7 +105,8 @@ public class Inventory {
         g2d.drawRoundRect(x, y, boxWidth, boxHeight, 10, 10);
         g2d.setFont(UIFont.regular(12f));
         g2d.drawString("Inventory - Caught Beasts", x + 14, y + 24);
-        g2d.drawString("B / ESC: Close  Up/Down: Navigate", x + 14, y + boxHeight - 12);
+        g2d.drawString("Equipped: " + equippedIndices.size() + "/3", x + boxWidth - 120, y + 24);
+        g2d.drawString("B / ESC: Close  Up/Down: Navigate  E/ENTER: Equip", x + 14, y + boxHeight - 12);
 
         if (beasts.isEmpty()) {
             g2d.drawString("No beasts caught yet.", x + 14, y + 52);
@@ -103,13 +129,14 @@ public class Inventory {
                 g2d.setColor(new Color(220, 220, 220));
             }
             String beastName = beasts.get(i);
+            String equipMark = equippedIndices.contains(i) ? "[EQ] " : "";
             BufferedImage icon = getBeastIcon(beastName);
             int textX = x + 16;
             if (icon != null) {
                 g2d.drawImage(icon, x + 16, rowY - 12, iconSize, iconSize, null);
                 textX += iconSize + 6;
             }
-            g2d.drawString((i + 1) + ". " + beastName, textX, rowY);
+            g2d.drawString((i + 1) + ". " + equipMark + beastName, textX, rowY);
         }
 
         String selected = getSelectedBeast();

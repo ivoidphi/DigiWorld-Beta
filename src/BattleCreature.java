@@ -51,6 +51,9 @@ public class BattleCreature {
     }
 
     public int takeDamage(int damage) {
+        if (isAllMighty()) {
+            return 0;
+        }
         int applied = Math.max(0, damage);
         hp = Math.max(0, hp - applied);
         return applied;
@@ -126,6 +129,10 @@ public class BattleCreature {
 
     public BeastElement getElement() {
         return element;
+    }
+
+    public boolean isAllMighty() {
+        return "All Mighty".equalsIgnoreCase(name);
     }
 
     public boolean spendEnergy(int cost) {

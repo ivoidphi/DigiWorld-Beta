@@ -74,6 +74,14 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean labReturnDialogueDone;
     private boolean aceJazzDefeated;
     private boolean tutorialBattleDone;
+    private boolean defeatedWildVineratops;
+    private boolean defeatedWildZyuugor;
+    private boolean defeatedPirrot;
+    private boolean defeatedVoltchu;
+    private boolean defeatedNokami;
+    private boolean defeatedShadefox;
+    private boolean defeatedKyoflare;
+    private boolean battledWoltrix;
     private int profAlfredState;
     private int genEdState;
     private int chiefReiState;
@@ -129,11 +137,11 @@ public class GamePanel extends JPanel implements Runnable {
         particles = new ArrayList<>();
         starterChoices = new String[]{
                 "Kyoflare", "Nokami", "Vineratops", "Voltchu", "Zyuugor",
-                "Pirrot", "Gekuma", "Shadefox", "Kingmantis"
+                "Pirrot", "Gekuma", "Shadefox", "Kingmantis", "All Mighty"
         };
         enemyChoices = new String[]{
                 "Kyoflare", "Nokami", "Vineratops", "Voltchu", "Zyuugor",
-                "Pirrot", "Gekuma", "Shadefox", "Kingmantis", "Woltrix"
+                "Pirrot", "Gekuma", "Shadefox", "Kingmantis", "Woltrix", "All Mighty"
         };
         starterSelectionIndex = 0;
         enemySelectionIndex = 0;
@@ -154,6 +162,14 @@ public class GamePanel extends JPanel implements Runnable {
         labReturnDialogueDone = false;
         aceJazzDefeated = false;
         tutorialBattleDone = false;
+        defeatedWildVineratops = false;
+        defeatedWildZyuugor = false;
+        defeatedPirrot = false;
+        defeatedVoltchu = false;
+        defeatedNokami = false;
+        defeatedShadefox = false;
+        defeatedKyoflare = false;
+        battledWoltrix = false;
         profAlfredState = 0;
         genEdState = 0;
         chiefReiState = 0;
@@ -227,6 +243,7 @@ public class GamePanel extends JPanel implements Runnable {
                     inventory.addBeast(caughtCreature);
                 }
                 String msg = battleSystem.getMessage();
+                applyBattleOutcomeProgress();
                 if (bossArenaActive && msg.contains("won")) {
                     handleBossVictory();
                 }
@@ -247,6 +264,7 @@ public class GamePanel extends JPanel implements Runnable {
             handleEnemySelectionInput();
         } else {
             if (movementLocked) {
+                updateCamera(current);
                 input.endFrame();
                 return;
             }
@@ -256,6 +274,7 @@ public class GamePanel extends JPanel implements Runnable {
             if (pendingDialogueEndAction) {
                 pendingDialogueEndAction = false;
                 executeDialogueEndAction();
+                refreshObjectiveFromProgress();
             }
 
             if (input.consumeJustPressed(KeyEvent.VK_B)) {
@@ -275,16 +294,80 @@ public class GamePanel extends JPanel implements Runnable {
             }
             checkWildEncounter(current);
             checkBossTrigger(current);
+            refreshObjectiveFromProgress();
         }
 
         if (gameState != GameState.BATTLE && gameState != GameState.DIALOGUE) {
-            current.update(deltaSeconds);
+            current.update(deltaSeconds, player);
         }
         updateCamera(current);
         updateParticles(deltaSeconds);
         updateSpeechBubble(deltaSeconds);
 
         input.endFrame();
+    }
+
+    private void applyBattleOutcomeProgress() {
+        String enemy = battleSystem.consumeLastResolvedEnemyName();
+        boolean won = battleSystem.consumeLastBattleWon();
+        if (!won || enemy == null || enemy.isBlank()) {
+            return;
+        }
+        String key = enemy.trim().toLowerCase();
+        if ("voltchu".equals(key)) {
+            defeatedVoltchu = true;
+            if (worldIndex == 1 && !tutorialBattleDone) {
+                tutorialBattleDone = true;
+            }
+        } else if ("vineratops".equals(key)) {
+            defeatedWildVineratops = true;
+        } else if ("zyuugor".equals(key)) {
+            defeatedWildZyuugor = true;
+        } else if ("pirrot".equals(key)) {
+            defeatedPirrot = true;
+        } else if ("nokami".equals(key)) {
+            defeatedNokami = true;
+        } else if ("shadefox".equals(key)) {
+            defeatedShadefox = true;
+        } else if ("kyoflare".equals(key)) {
+            defeatedKyoflare = true;
+        } else if ("woltrix".equals(key)) {
+            battledWoltrix = true;
+        }
+        refreshObjectiveFromProgress();
+    }
+
+    private void refreshObjectiveFromProgress() {
+        String nextObjective;
+        if (worldIndex == 0) {
+            if (!hasTalkedToProfessor) nextObjective = "Talk to Professor Alfred";
+            else if (!hasTalkedToGeneral) nextObjective = "Talk to General Edrian";
+            else if (!starterSelectionDone) nextObjective = "Choose 3 starter Mecha Beasts";
+            else nextObjective = "Enter DigiWorld";
+        } else if (worldIndex == 1) {
+            if (!hasTalkedToChiefRei) nextObjective = "Talk to Chief Rei";
+            else if (!alphaTutorialTriggered) nextObjective = "Enter the Mystic Forest";
+            else if (!tutorialBattleDone) nextObjective = "Complete battle tutorial";
+            else if (!defeatedWildVineratops) nextObjective = "Defeat wild Vineratops";
+            else if (!defeatedWildZyuugor) nextObjective = "Defeat wild Zyuugor";
+            else if (aldrichState == 0) nextObjective = "Challenge Aldrich";
+            else if (!alphaBossDefeated) nextObjective = "Defeat Alpha Beast Gekuma";
+            else nextObjective = "Return to the lab and talk to Professor Alfred";
+        } else if (worldIndex == 2 && !collapseStarted) {
+            if (!aceJazzDefeated) nextObjective = "Battle Ace Jazz";
+            else if (!defeatedPirrot) nextObjective = "Defeat Pirrot";
+            else if (!hasChallengeTicket) nextObjective = "Obtain Challenge Ticket";
+            else if (!trialCompleted) nextObjective = "Enter Tournament Trial and defeat Voltchu";
+            else nextObjective = "Register for the tournament";
+        } else {
+            if (!collapseStarted) nextObjective = "Investigate the city glitch";
+            else if (!defeatedNokami) nextObjective = "Defeat Nokami";
+            else if (!defeatedShadefox) nextObjective = "Defeat Shadefox";
+            else if (!defeatedKyoflare) nextObjective = "Defeat Kyoflare";
+            else if (!battledWoltrix) nextObjective = "Battle Woltrix";
+            else nextObjective = "Return to the real world and check your mail";
+        }
+        currentObjective = nextObjective;
     }
 
     private void updateSpeechBubble(double deltaSeconds) {
@@ -368,7 +451,7 @@ public class GamePanel extends JPanel implements Runnable {
                         new String[]{"Prof Alfred"},
                         new String[]{"Excellent! Now before we transport you, you will need this G-Watch, Mech-driver and Beast-Cards. Choose 3 out of these 10 Mecha Beasts."}
                 );
-                startDialogue(script, "OPEN_STARTER_SELECT|SET_FLAG:starterSelectionDone|SET_NPC_STATE:profAlfredState:2|SET_OBJECTIVE:Choose 3 Mecha Beasts");
+                startDialogue(script, "OPEN_STARTER_SELECT|SET_NPC_STATE:profAlfredState:2|SET_OBJECTIVE:Choose 3 Mecha Beasts");
             } else if (profAlfredState == 2 && !starterSelectionDone) {
                 DialogueSequence script = DialogueFactory.createSequence(
                         new String[]{"Prof Alfred"},
@@ -733,6 +816,7 @@ public class GamePanel extends JPanel implements Runnable {
             battleSystem.setStarterBeast(party[0]);
             starterChosen = true;
             starterSelectionDone = true;
+            currentObjective = "Talk to Chief Rei";
             selectedStarterIndices.clear();
             interactionMessage = "3 starters chosen. Teleporting to Alpha Village.";
             teleportWithFade(1);
@@ -769,6 +853,9 @@ public class GamePanel extends JPanel implements Runnable {
         if (input.consumeJustPressed(KeyEvent.VK_9) && enemyChoices.length > 8) enemySelectionIndex = 8;
         if (input.consumeJustPressed(KeyEvent.VK_0) && enemyChoices.length > 9) enemySelectionIndex = 9;
         if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+            if (!prepareBattlePartyFromInventory()) {
+                return;
+            }
             battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
             battleSystem.startWildBattle(enemyChoices[enemySelectionIndex]);
             gameState = GameState.BATTLE;
@@ -789,13 +876,21 @@ public class GamePanel extends JPanel implements Runnable {
             inventory.moveSelection(1);
             return;
         }
-        if (input.consumeJustPressed(KeyEvent.VK_ENTER)) {
-            String selected = inventory.getSelectedBeast();
-            if (!selected.isEmpty()) {
-                interactionMessage = "Selected beast: " + selected;
-            }
-            gameState = GameState.EXPLORATION;
+        if (input.consumeJustPressed(KeyEvent.VK_E) || input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+            interactionMessage = inventory.toggleEquippedSelected();
         }
+    }
+
+    private boolean prepareBattlePartyFromInventory() {
+        String[] equipped = inventory.getEquippedBeastNames();
+        if (equipped.length < 3) {
+            interactionMessage = "Equip 3 beasts in backpack before battle.";
+            gameState = GameState.EXPLORATION;
+            return false;
+        }
+        battleSystem.setPlayerParty(equipped);
+        battleSystem.setStarterBeast(equipped[0]);
+        return true;
     }
 
     private boolean canGoNextWorld() {
@@ -831,6 +926,7 @@ public class GamePanel extends JPanel implements Runnable {
                 previousTileX = (int) player.getX() / TILE_SIZE;
                 previousTileY = (int) player.getY() / TILE_SIZE;
                 encounterCooldownTimer = 1.5;
+                camera.follow(player, world, LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE_SIZE);
                 fadeTarget = 0.0;
             }
         }).start();
@@ -879,7 +975,11 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(200, 80, 80),
-                                new int[][]{{25, 6}, {25, 6}, {25, 6}, {25, 6}}
+                                new int[][]{{25, 6}, {25, 6}, {25, 6}, {25, 6}},
+                                "res/characters/aldrich/aldrich-fw.png",
+                                "res/characters/aldrich/aldrich-b.png",
+                                "res/characters/aldrich/aldrich-l.png",
+                                "res/characters/aldrich/aldrich-r.png"
                         ),
                         new Npc("Prof Alfred", TILE_SIZE, TILE_SIZE, new Color(214, 93, 177), new int[][]{{22, 18}, {24, 18}, {24, 20}, {22, 20}},
                                 "res/characters/professor-alfred/profalfred-fw.png",
@@ -894,14 +994,22 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(230, 160, 75),
-                                new int[][]{{28, 21}, {28, 21}, {28, 21}, {28, 21}}
+                                new int[][]{{28, 21}, {28, 21}, {28, 21}, {28, 21}},
+                                "res/characters/ace-jazz/acejazz-fw.png",
+                                "res/characters/ace-jazz/acejazz-b.png",
+                                "res/characters/ace-jazz/acejazz-l.png",
+                                "res/characters/ace-jazz/acejazz-r.png"
                         ),
                         new Npc(
                                 "Trialmaster",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(180, 130, 214),
-                                new int[][]{{28, 8}, {28, 8}, {28, 8}, {28, 8}}
+                                new int[][]{{28, 8}, {28, 8}, {28, 8}, {28, 8}},
+                                "res/characters/trialmaster/trialmaster-fw.png",
+                                "res/characters/trialmaster/trialmaster-b.png",
+                                "res/characters/trialmaster/trialmaster-l.png",
+                                "res/characters/trialmaster/trialmaster-r.png"
                         ),
                         new Npc(
                                 "Boss Rhonn",
@@ -917,7 +1025,11 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(128, 214, 104),
-                                new int[][]{{30, 23}, {30, 23}, {30, 23}, {30, 23}}
+                                new int[][]{{30, 23}, {30, 23}, {30, 23}, {30, 23}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 })
         };
@@ -941,8 +1053,9 @@ public class GamePanel extends JPanel implements Runnable {
             for (Npc npc : current.getNpcs()) {
                 npc.render(scene, camera);
             }
+            renderParticles(scene, true);
             player.render(scene, camera);
-            renderParticles(scene);
+            renderParticles(scene, false);
             if (bossArenaActive) {
                 drawBossArena(scene, current);
             }
@@ -1044,44 +1157,61 @@ public class GamePanel extends JPanel implements Runnable {
     private void spawnLeafParticle(double x, double y, double dirX, double dirY) {
         double spreadX = (random.nextDouble() - 0.5) * 20.0;
         double spreadY = (random.nextDouble() - 0.5) * 12.0;
-        particles.add(new Particle(
-                x, y,
-                dirX * (28 + random.nextDouble() * 20) + spreadX * 0.2,
-                dirY * (12 + random.nextDouble() * 12) - 14 + spreadY * 0.2,
-                0.32 + random.nextDouble() * 0.22,
-                new Color(118, 204, 92, 210),
-                3 + random.nextInt(3)
-        ));
+                addParticle(new Particle(
+                        x, y,
+                        dirX * (28 + random.nextDouble() * 20) + spreadX * 0.2,
+                        dirY * (12 + random.nextDouble() * 12) - 14 + spreadY * 0.2,
+                        0.32 + random.nextDouble() * 0.22,
+                        new Color(118, 204, 92, 210),
+                        3 + random.nextInt(3),
+                        false
+                ));
     }
 
     private void spawnFootParticle(double x, double y) {
-        particles.add(new Particle(
+        addParticle(new Particle(
                 x, y,
                 (random.nextDouble() - 0.5) * 10.0,
                 -6 - random.nextDouble() * 8.0,
                 0.22 + random.nextDouble() * 0.18,
                 new Color(95, 185, 76, 185),
-                2 + random.nextInt(2)
+                2 + random.nextInt(2),
+                true
         ));
     }
 
-    private void updateParticles(double deltaSeconds) {
-        Iterator<Particle> it = particles.iterator();
-        while (it.hasNext()) {
-            Particle p = it.next();
-            p.life -= deltaSeconds;
-            if (p.life <= 0) {
-                it.remove();
-                continue;
-            }
-            p.x += p.vx * deltaSeconds;
-            p.y += p.vy * deltaSeconds;
-            p.vy += 18.0 * deltaSeconds;
+    private void addParticle(Particle p) {
+        synchronized (particles) {
+            particles.add(p);
         }
     }
 
-    private void renderParticles(Graphics2D g2d) {
-        for (Particle p : particles) {
+    private void updateParticles(double deltaSeconds) {
+        synchronized (particles) {
+            Iterator<Particle> it = particles.iterator();
+            while (it.hasNext()) {
+                Particle p = it.next();
+                p.life -= deltaSeconds;
+                if (p.life <= 0) {
+                    it.remove();
+                    continue;
+                }
+                p.x += p.vx * deltaSeconds;
+                p.y += p.vy * deltaSeconds;
+                p.vy += 18.0 * deltaSeconds;
+            }
+        }
+    }
+
+    private void renderParticles(Graphics2D g2d, boolean behindPlayerLayer) {
+        List<Particle> snapshot;
+        synchronized (particles) {
+            snapshot = new ArrayList<>(particles);
+        }
+        for (Particle p : snapshot) {
+            if (p.behindPlayer != behindPlayerLayer) {
+                continue;
+            }
             int sx = (int) Math.round(p.x) - camera.getX();
             int sy = (int) Math.round(p.y) - camera.getY();
             if (sx < -6 || sy < -6 || sx > LOGICAL_WIDTH + 6 || sy > LOGICAL_HEIGHT + 6) {
@@ -1100,8 +1230,9 @@ public class GamePanel extends JPanel implements Runnable {
         private double life;
         private final Color color;
         private final int size;
+        private final boolean behindPlayer;
 
-        private Particle(double x, double y, double vx, double vy, double life, Color color, int size) {
+        private Particle(double x, double y, double vx, double vy, double life, Color color, int size, boolean behindPlayer) {
             this.x = x;
             this.y = y;
             this.vx = vx;
@@ -1109,6 +1240,7 @@ public class GamePanel extends JPanel implements Runnable {
             this.life = life;
             this.color = color;
             this.size = size;
+            this.behindPlayer = behindPlayer;
         }
     }
 
@@ -1218,27 +1350,15 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void startBossBattle(World current, String bossName) {
+        if (!prepareBattlePartyFromInventory()) {
+            return;
+        }
         bossArenaActive = true;
         currentBossWorldIndex = worldIndex;
-        movementLocked = true;
-        fadeTarget = 1.0;
-        fadeAlpha = Math.max(fadeAlpha, 0.01);
         interactionMessage = "Boss battle: " + bossName;
-
-        new Thread(() -> {
-            try {
-                Thread.sleep(700);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            synchronized (this) {
-                battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
-                battleSystem.startWildBattle(bossName);
-                gameState = GameState.BATTLE;
-                fadeTarget = 0.0;
-                movementLocked = false;
-            }
-        }).start();
+        battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
+        battleSystem.startWildBattle(bossName);
+        gameState = GameState.BATTLE;
     }
 
     private void handleBossVictory() {
@@ -1294,6 +1414,9 @@ public class GamePanel extends JPanel implements Runnable {
 
         if ("World 2 - Alpha Village".equalsIgnoreCase(current.getName()) && !alphaTutorialTriggered) {
             alphaTutorialTriggered = true;
+            if (!prepareBattlePartyFromInventory()) {
+                return;
+            }
             battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
             battleSystem.startWildBattle("Voltchu");
             gameState = GameState.BATTLE;
@@ -1303,8 +1426,12 @@ public class GamePanel extends JPanel implements Runnable {
 
         int encounterChancePercent = 100;
         if (random.nextInt(100) < encounterChancePercent) {
-            gameState = GameState.ENEMY_SELECT;
-            enemySelectionIndex = 0;
+            if (!prepareBattlePartyFromInventory()) {
+                return;
+            }
+            battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
+            battleSystem.startWildBattle(pickRandomWildEnemy());
+            gameState = GameState.BATTLE;
             if (activeNpc != null) {
                 activeNpc.endInteraction();
             }
@@ -1312,6 +1439,19 @@ public class GamePanel extends JPanel implements Runnable {
             activeNpc = null;
             interactionMessage = "";
         }
+    }
+
+    private String pickRandomWildEnemy() {
+        List<String> pool = new ArrayList<>();
+        for (String enemy : enemyChoices) {
+            if (!"All Mighty".equalsIgnoreCase(enemy)) {
+                pool.add(enemy);
+            }
+        }
+        if (pool.isEmpty()) {
+            return "Voltchu";
+        }
+        return pool.get(random.nextInt(pool.size()));
     }
 
     private void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices, int selectedIndex) {

@@ -42,6 +42,7 @@ public class World {
         double[][] grassNoise = new double[tiles.length][tiles[0].length];
         boolean[][] landMask = new boolean[tiles.length][tiles[0].length];
         boolean isHometown = "Hometown".equalsIgnoreCase(name);
+        boolean isBetaCity = "World 3 - Beta City".equalsIgnoreCase(name);
         int shapeVariant = Math.abs(name.hashCode()) % 4;
         int waterMargin = 5;
         double cx = (getWidth() - 1) / 2.0;
@@ -51,10 +52,21 @@ public class World {
 
         for (int y = 0; y < tiles.length; y++) {
             for (int x = 0; x < tiles[0].length; x++) {
-                tiles[y][x] = TileType.WATER;
+                tiles[y][x] = isBetaCity ? TileType.GRASS1 : TileType.WATER;
                 grassNoise[y][x] = random.nextDouble();
+                if (isBetaCity) {
+                    landMask[y][x] = true;
+                }
             }
         }
+
+        if (isBetaCity) {
+            for (int y = 0; y < tiles.length; y++) {
+                for (int x = 0; x < tiles[0].length; x++) {
+                    tiles[y][x] = ((x + y) % 2 == 0) ? TileType.GRASS1 : TileType.GRASS2;
+                }
+            }
+        } else {
 
         for (int y = waterMargin; y < getHeight() - waterMargin; y++) {
             for (int x = waterMargin; x < getWidth() - waterMargin; x++) {
@@ -87,6 +99,7 @@ public class World {
                     tiles[y][x] = TileType.GRASS1;
                 }
             }
+        }
         }
 
         // Smooth random blending between grass1 and grass2.
@@ -253,9 +266,9 @@ public class World {
         }
     }
 
-    public void update(double deltaSeconds) {
+    public void update(double deltaSeconds, Player player) {
         for (Npc npc : npcs) {
-            npc.update(deltaSeconds, this);
+            npc.update(deltaSeconds, this, player);
         }
     }
 

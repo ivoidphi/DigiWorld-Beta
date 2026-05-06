@@ -73,6 +73,12 @@ public final class BeastCatalog {
                             new BattleMove("Iron Fang", 55, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
                             new BattleMove("Volt Saber", 105, 45, 1, StatusEffect.PARALYZE, 0.40, BeastElement.ELECTRIC),
                             new BattleMove("Thunder Barrage", 165, 90, 3, StatusEffect.NONE, 0.0, BeastElement.ELECTRIC, MoveEffect.EXTRA_HITS, 0.0, 0, 4, 0.30)
+                    }),
+            new BeastTemplate("All Mighty", 9999, 9999, 9999, 9999, 9999, 999, 99, BeastElement.NEUTRAL, "The invincible test beast, ALL MIGHTY!",
+                    new BattleMove[]{
+                            new BattleMove("All Breaker", 9999, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
+                            new BattleMove("Absolute Zero", 9999, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
+                            new BattleMove("Final Verdict", 9999, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL)
                     })
     };
 

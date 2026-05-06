@@ -62,8 +62,11 @@ public class BattleSystem {
     private Rectangle[] actionButtons;
     private Rectangle[] switchButtons;
     private PlayerMenuMode playerMenuMode;
+    private int switchSelectionIndex;
     private boolean[] ownedPlayerCreatures;
     private boolean openingBeastChoiceRequired;
+    private String lastResolvedEnemyName;
+    private boolean lastBattleWon;
 
     private BufferedImage enemyBattleSprite;
     private BufferedImage enemyBattleSpriteHit;
@@ -90,11 +93,14 @@ public class BattleSystem {
         actionButtons = new Rectangle[6];
         switchButtons = new Rectangle[playerCreatures.length];
         playerMenuMode = PlayerMenuMode.COMMAND;
+        switchSelectionIndex = 0;
         ownedPlayerCreatures = new boolean[playerCreatures.length];
         for (int i = 0; i < ownedPlayerCreatures.length; i++) {
             ownedPlayerCreatures[i] = true;
         }
         openingBeastChoiceRequired = false;
+        lastResolvedEnemyName = "";
+        lastBattleWon = false;
     }
 
     public void startWildBattle(String enemyBeastName) {
@@ -121,7 +127,22 @@ public class BattleSystem {
         pendingCaughtCreatureName = null;
         openingBeastChoiceRequired = true;
         playerMenuMode = PlayerMenuMode.SWITCH_SELECT;
+        switchSelectionIndex = Math.max(0, Math.min(playerCreatures.length - 1, activePlayerIndex));
         message = "Choose your beast for this battle.";
+        lastResolvedEnemyName = "";
+        lastBattleWon = false;
+    }
+
+    public String consumeLastResolvedEnemyName() {
+        String out = lastResolvedEnemyName;
+        lastResolvedEnemyName = "";
+        return out;
+    }
+
+    public boolean consumeLastBattleWon() {
+        boolean out = lastBattleWon;
+        lastBattleWon = false;
+        return out;
     }
 
     public String[] getStarterChoices() {
@@ -238,6 +259,22 @@ public class BattleSystem {
             if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
                 playerMenuMode = PlayerMenuMode.COMMAND;
                 message = "Choose an action.";
+                return "continue";
+            }
+            if (input.consumeJustPressed(KeyEvent.VK_LEFT) || input.consumeJustPressed(KeyEvent.VK_A)
+                    || input.consumeJustPressed(KeyEvent.VK_UP) || input.consumeJustPressed(KeyEvent.VK_W)) {
+                switchSelectionIndex = (switchSelectionIndex - 1 + playerCreatures.length) % playerCreatures.length;
+                message = "Select a beast to switch to (ENTER confirm, ESC cancel).";
+                return "continue";
+            }
+            if (input.consumeJustPressed(KeyEvent.VK_RIGHT) || input.consumeJustPressed(KeyEvent.VK_D)
+                    || input.consumeJustPressed(KeyEvent.VK_DOWN) || input.consumeJustPressed(KeyEvent.VK_S)) {
+                switchSelectionIndex = (switchSelectionIndex + 1) % playerCreatures.length;
+                message = "Select a beast to switch to (ENTER confirm, ESC cancel).";
+                return "continue";
+            }
+            if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+                trySwitchToIndex(switchSelectionIndex);
                 return "continue";
             }
             if (input.consumeJustPressed(KeyEvent.VK_1)) { trySwitchToIndex(0); return "continue"; }
@@ -389,7 +426,8 @@ public class BattleSystem {
 
     private void switchBeast() {
         playerMenuMode = PlayerMenuMode.SWITCH_SELECT;
-        message = "Select a beast to switch to (1-3, ESC cancel).";
+        switchSelectionIndex = Math.max(0, Math.min(playerCreatures.length - 1, activePlayerIndex));
+        message = "Select a beast to switch to (WASD/Arrows, ENTER confirm, ESC cancel).";
     }
 
     private void trySwitchToIndex(int index) {
@@ -469,6 +507,8 @@ public class BattleSystem {
             if (leveled) {
                 result += " Level up! Lv " + playerCreature.getLevel() + ".";
             }
+            lastResolvedEnemyName = enemyCreature != null ? enemyCreature.getName() : "";
+            lastBattleWon = true;
             enterResult(result);
             return;
         }
@@ -483,6 +523,8 @@ public class BattleSystem {
         }
         int chance = TEMP_RUN_SUCCESS_RATE_PERCENT;
         if (random.nextInt(100) < chance) {
+            lastResolvedEnemyName = enemyCreature != null ? enemyCreature.getName() : "";
+            lastBattleWon = false;
             enterResult("You ran away safely.");
         } else {
             message = "Run failed!";
@@ -501,6 +543,8 @@ public class BattleSystem {
         int catchChance = (int) Math.round(Math.max(0.05, Math.min(0.95, rawChance)) * 100.0);
         if (random.nextInt(100) < catchChance) {
             pendingCaughtCreatureName = enemyCreature.getName();
+            lastResolvedEnemyName = enemyCreature.getName();
+            lastBattleWon = false;
             enterResult("Caught " + enemyCreature.getName() + "!");
         } else {
             message = "Catch failed! (" + catchChance + "%)";
@@ -543,6 +587,8 @@ public class BattleSystem {
 
         if (playerCreature.isFainted()) {
             playerCreature.healToFull();
+            lastResolvedEnemyName = enemyCreature != null ? enemyCreature.getName() : "";
+            lastBattleWon = false;
             enterResult("You lost the battle.");
         } else {
             message = "Enemy used " + enemyMove.getName() + " for " + damage + " damage.";
@@ -572,6 +618,9 @@ public class BattleSystem {
     }
 
     private int computeDamage(BattleCreature attacker, BattleCreature defender, int movePower, BeastElement attackType, BattleMove move) {
+        if (attacker != null && attacker.isAllMighty()) {
+            return Math.max(1, defender.getHp());
+        }
         double levelPart = ((2.0 * attacker.getLevel() / 5.0) + 2.0);
         double core = ((levelPart * movePower * (attacker.getAttack() / (double) Math.max(1, defender.getDefense()))) / 50.0) + 2.0;
         double stab = (attackType != BeastElement.NEUTRAL && attackType == attacker.getElement()) ? 1.5 : 1.0;
@@ -685,11 +734,16 @@ public class BattleSystem {
             switchButtons[i] = new Rectangle(bx, by, btnW, btnH);
             BattleCreature creature = playerCreatures[i];
             boolean isActive = i == activePlayerIndex;
+            boolean isCursor = i == switchSelectionIndex;
             boolean owned = ownedPlayerCreatures[i];
             g2d.setColor(isActive ? new Color(54, 82, 120, 230) : new Color(26, 30, 42, 220));
             g2d.fillRoundRect(bx, by, btnW, btnH, 8, 8);
             g2d.setColor(new Color(215, 215, 220));
             g2d.drawRoundRect(bx, by, btnW, btnH, 8, 8);
+            if (isCursor) {
+                g2d.setColor(new Color(120, 180, 255));
+                g2d.drawRoundRect(bx + 1, by + 1, btnW - 2, btnH - 2, 8, 8);
+            }
             g2d.setColor(owned ? Color.WHITE : new Color(155, 155, 155));
             g2d.drawString((i + 1) + " " + creature.getName(), bx + 8, by + 18);
             g2d.drawString("HP " + creature.getHp() + "/" + creature.getMaxHp(), bx + 8, by + 38);

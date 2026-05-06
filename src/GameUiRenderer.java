@@ -1,6 +1,8 @@
 import java.awt.Color;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.AlphaComposite;
+import java.awt.Composite;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import javax.imageio.ImageIO;
@@ -30,9 +32,12 @@ public class GameUiRenderer {
     public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective) {
         BufferedImage banner = getWorldBanner(current.getName());
         if (banner != null) {
-            int bannerX = (logicalWidth - banner.getWidth()) / 2;
+            int scaledW = (int) Math.round(banner.getWidth() * 1.45);
+            int scaledH = (int) Math.round(banner.getHeight() * 1.45);
+            int bannerX = (logicalWidth - scaledW) / 2;
             int bannerY = logicalHeight / 16;
-            g2d.drawImage(banner, bannerX, bannerY, null);
+            drawImageShadow(g2d, banner, bannerX, bannerY, scaledW, scaledH, 3, 3, 0.45f);
+            g2d.drawImage(banner, bannerX, bannerY, scaledW, scaledH, null);
         }
 
         if (currentObjective != null && !currentObjective.isEmpty()) {
@@ -44,20 +49,23 @@ public class GameUiRenderer {
             g2d.setColor(new Color(0, 0, 0, 140));
             g2d.fillRoundRect(objX - 8, objY - 12, objWidth + 16, 18, 6, 6);
             g2d.setColor(new Color(255, 230, 120, 240));
+            drawStringShadow(g2d, objText, objX, objY, 1, 1, new Color(0, 0, 0, 180));
             g2d.drawString(objText, objX, objY);
         }
 
         int iconBoxX = 10;
-        int iconBoxY = logicalHeight / 2 - 26;
-        int iconBoxW = 52;
-        int iconBoxH = 52;
+        int iconBoxY = logicalHeight / 2 - 19;
+        int iconBoxW = 38;
+        int iconBoxH = 38;
         if (inventoryIcon != null) {
+            drawImageShadow(g2d, inventoryIcon, iconBoxX, iconBoxY, iconBoxW, iconBoxH, 2, 2, 0.5f);
             g2d.drawImage(inventoryIcon, iconBoxX, iconBoxY, iconBoxW, iconBoxH, null);
         }
 
         if (interactionMessage != null && !interactionMessage.isEmpty()) {
             g2d.setColor(new Color(255, 255, 255, 230));
             g2d.setFont(UIFont.regular(10f));
+            drawStringShadow(g2d, interactionMessage, 16, logicalHeight - 12, 1, 1, new Color(0, 0, 0, 180));
             g2d.drawString(interactionMessage, 16, logicalHeight - 12);
         }
     }
@@ -74,9 +82,11 @@ public class GameUiRenderer {
         int boxX = npcScreenX + (npc.getSize() - boxWidth) / 2;
         int boxY = npcScreenY - 18;
         g2d.setColor(new Color(0, 0, 0, 190));
+        g2d.fillRoundRect(boxX + 2, boxY + 2, boxWidth, boxHeight, 6, 6);
         g2d.fillRoundRect(boxX, boxY, boxWidth, boxHeight, 6, 6);
         g2d.setColor(new Color(255, 255, 255, 230));
         g2d.drawRoundRect(boxX, boxY, boxWidth, boxHeight, 6, 6);
+        drawStringShadow(g2d, text, boxX + paddingX, boxY + 10, 1, 1, new Color(0, 0, 0, 180));
         g2d.drawString(text, boxX + paddingX, boxY + 10);
     }
 
@@ -94,6 +104,7 @@ public class GameUiRenderer {
         int y = npcScreenCenterY - size / 2;
         x = Math.max(4, Math.min(logicalWidth - size - 4, x));
         y = Math.max(4, Math.min(logicalHeight - size - 4, y));
+        drawImageShadow(g2d, interactIcon, x, y, size, size, 1, 1, 0.5f);
         g2d.drawImage(interactIcon, x, y, size, size, null);
     }
 
@@ -115,6 +126,7 @@ public class GameUiRenderer {
         y = Math.max(6, y);
 
         g2d.setColor(new Color(0, 0, 0, 210));
+        g2d.fillRoundRect(x + 2, y + 2, boxWidth, boxHeight, 8, 8);
         g2d.fillRoundRect(x, y, boxWidth, boxHeight, 8, 8);
         g2d.setColor(new Color(240, 240, 240));
         g2d.drawRoundRect(x, y, boxWidth, boxHeight, 8, 8);
@@ -131,6 +143,7 @@ public class GameUiRenderer {
         int y = logicalHeight - boxHeight - 14;
 
         g2d.setColor(new Color(0, 0, 0, 220));
+        g2d.fillRoundRect(x + 2, y + 2, boxWidth, boxHeight, 8, 8);
         g2d.fillRoundRect(x, y, boxWidth, boxHeight, 8, 8);
         g2d.setColor(Color.WHITE);
         g2d.drawRoundRect(x, y, boxWidth, boxHeight, 8, 8);
@@ -161,38 +174,50 @@ public class GameUiRenderer {
     }
 
     public void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices, int selectedIndex, LinkedHashSet<Integer> selectedStarterIndices, GameState gameState) {
-        int boxWidth = Math.min(760, logicalWidth - 40);
-        int boxHeight = Math.min(420, logicalHeight - 30);
+        int boxWidth = Math.min(720, logicalWidth - 36);
+        int boxHeight = Math.min(410, logicalHeight - 28);
         int x = (logicalWidth - boxWidth) / 2;
         int y = (logicalHeight - boxHeight) / 2;
 
-        g2d.setColor(new Color(18, 14, 28, 235));
-        g2d.fillRoundRect(x, y, boxWidth, boxHeight, 12, 12);
-        g2d.setColor(new Color(236, 214, 150));
-        g2d.drawRoundRect(x, y, boxWidth, boxHeight, 12, 12);
-        g2d.drawRoundRect(x + 4, y + 4, boxWidth - 8, boxHeight - 8, 10, 10);
+        g2d.setColor(new Color(20, 22, 32, 235));
+        g2d.fillRoundRect(x + 2, y + 2, boxWidth, boxHeight, 10, 10);
+        g2d.fillRoundRect(x, y, boxWidth, boxHeight, 10, 10);
+        g2d.setColor(new Color(220, 220, 230));
+        g2d.drawRoundRect(x, y, boxWidth, boxHeight, 10, 10);
 
-        g2d.setFont(UIFont.bold(14f));
-        g2d.setColor(new Color(255, 242, 201));
+        g2d.setFont(UIFont.bold(13f));
+        g2d.setColor(new Color(245, 245, 250));
         g2d.drawString(title, x + 16, y + 26);
-        g2d.setFont(UIFont.regular(11f));
-        g2d.drawString(subtitle, x + 16, y + 44);
+        g2d.setFont(UIFont.regular(10f));
+        g2d.setColor(new Color(205, 205, 220));
+        g2d.drawString(subtitle, x + 16, y + 42);
+        if (gameState == GameState.STARTER_SELECT) {
+            g2d.drawString("Chosen: " + selectedStarterIndices.size() + "/3", x + boxWidth - 110, y + 26);
+        }
 
-        int cardGap = 8;
-        int columns = 5;
-        int cardWidth = (boxWidth - 32 - cardGap * (columns - 1)) / columns;
-        int cardHeight = 122;
-        int cardY = y + 58;
+        int listX = x + 14;
+        int listY = y + 56;
+        int listW = (int) (boxWidth * 0.60);
+        int listH = boxHeight - 86;
+        g2d.setColor(new Color(30, 34, 48, 210));
+        g2d.fillRoundRect(listX, listY, listW, listH, 8, 8);
+        g2d.setColor(new Color(185, 185, 200));
+        g2d.drawRoundRect(listX, listY, listW, listH, 8, 8);
+
+        int columns = 3;
+        int cardGap = 7;
+        int cardWidth = (listW - 14 - cardGap * (columns - 1)) / columns;
+        int cardHeight = 74;
         for (int i = 0; i < choices.length; i++) {
             int row = i / columns;
             int col = i % columns;
-            int cardX = x + 16 + col * (cardWidth + cardGap);
-            int drawY = cardY + row * (cardHeight + 8);
+            int cardX = listX + 7 + col * (cardWidth + cardGap);
+            int drawY = listY + 8 + row * (cardHeight + 6);
             boolean selected = i == selectedIndex;
             boolean partySelected = selectedStarterIndices.contains(i) && gameState == GameState.STARTER_SELECT;
-            g2d.setColor(selected ? new Color(58, 75, 127, 235) : new Color(31, 35, 58, 220));
+            g2d.setColor(selected ? new Color(66, 86, 138, 235) : new Color(40, 45, 64, 220));
             g2d.fillRoundRect(cardX, drawY, cardWidth, cardHeight, 8, 8);
-            g2d.setColor(selected ? new Color(255, 236, 171) : new Color(185, 185, 200));
+            g2d.setColor(selected ? new Color(255, 236, 171) : new Color(170, 170, 185));
             g2d.drawRoundRect(cardX, drawY, cardWidth, cardHeight, 8, 8);
             if (partySelected) {
                 g2d.setColor(new Color(120, 255, 160));
@@ -201,26 +226,53 @@ public class GameUiRenderer {
 
             BufferedImage sprite = battleSystem.getCreatureSprite(choices[i]);
             if (sprite != null) {
-                g2d.drawImage(sprite, cardX + 12, drawY + 8, cardWidth - 24, 50, null);
+                g2d.drawImage(sprite, cardX + 6, drawY + 6, 34, 34, null);
             }
             g2d.setColor(Color.WHITE);
             g2d.setFont(UIFont.bold(10f));
-            g2d.drawString((i + 1) + ". " + choices[i], cardX + 6, drawY + 69);
-
+            g2d.drawString((i + 1) + ". " + choices[i], cardX + 44, drawY + 18);
             BeastCatalog.BeastTemplate stats = BeastCatalog.findByName(choices[i]);
             g2d.setFont(UIFont.regular(9f));
             if (stats != null) {
-                g2d.drawString("Lv " + stats.level() + " HP " + stats.baseHp(), cardX + 6, drawY + 84);
-                g2d.drawString("ATK " + stats.baseAttack() + " DEF " + stats.baseDefense(), cardX + 6, drawY + 96);
+                g2d.drawString("Lv " + stats.level() + "  HP " + stats.baseHp(), cardX + 44, drawY + 34);
+                g2d.drawString("ATK " + stats.baseAttack() + "  DEF " + stats.baseDefense(), cardX + 44, drawY + 48);
             }
-            String label = partySelected ? "Chosen" : (selected ? "Selected" : "Pick");
-            g2d.drawString(label, cardX + 6, drawY + 110);
+            String label = partySelected ? "Chosen" : (selected ? "Selected" : "");
+            if (!label.isEmpty()) {
+                g2d.setColor(new Color(228, 228, 240));
+                g2d.drawString(label, cardX + 44, drawY + 62);
+            }
+        }
+
+        int detailX = listX + listW + 10;
+        int detailY = listY;
+        int detailW = boxWidth - (detailX - x) - 14;
+        int detailH = listH;
+        g2d.setColor(new Color(30, 34, 48, 210));
+        g2d.fillRoundRect(detailX, detailY, detailW, detailH, 8, 8);
+        g2d.setColor(new Color(185, 185, 200));
+        g2d.drawRoundRect(detailX, detailY, detailW, detailH, 8, 8);
+        String selectedName = choices[Math.max(0, Math.min(choices.length - 1, selectedIndex))];
+        BeastCatalog.BeastTemplate selectedStats = BeastCatalog.findByName(selectedName);
+        BufferedImage selectedSprite = battleSystem.getCreatureSprite(selectedName);
+        if (selectedSprite != null) {
+            g2d.drawImage(selectedSprite, detailX + 18, detailY + 14, detailW - 36, 92, null);
+        }
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(UIFont.bold(12f));
+        g2d.drawString(selectedName, detailX + 12, detailY + 124);
+        g2d.setFont(UIFont.regular(10f));
+        if (selectedStats != null) {
+            g2d.drawString("Level: " + selectedStats.level(), detailX + 12, detailY + 146);
+            g2d.drawString("HP: " + selectedStats.baseHp(), detailX + 12, detailY + 164);
+            g2d.drawString("ATK: " + selectedStats.baseAttack(), detailX + 12, detailY + 182);
+            g2d.drawString("DEF: " + selectedStats.baseDefense(), detailX + 12, detailY + 200);
         }
 
         g2d.setColor(new Color(230, 230, 240));
         g2d.setFont(UIFont.regular(10f));
         if (gameState == GameState.STARTER_SELECT) {
-            g2d.drawString("WASD/Arrows/1-9 move | ENTER add/remove | Pick 3 beasts | ESC cancel", x + 16, y + boxHeight - 10);
+            g2d.drawString("WASD/Arrows select | ENTER add/remove | Pick 3 | ESC cancel", x + 16, y + boxHeight - 10);
         } else {
             g2d.drawString("A/D or 1-3 choose | ENTER confirm | ESC cancel", x + 16, y + boxHeight - 10);
         }
@@ -260,6 +312,7 @@ public class GameUiRenderer {
         y = Math.max(8, y);
 
         g2d.setColor(new Color(0, 0, 0, 220));
+        g2d.fillRoundRect(x + 2, y + 2, boxWidth, boxHeight, 8, 8);
         g2d.fillRoundRect(x, y, boxWidth, boxHeight, 8, 8);
         g2d.setColor(new Color(230, 230, 240));
         g2d.drawRoundRect(x, y, boxWidth, boxHeight, 8, 8);
@@ -339,5 +392,22 @@ public class GameUiRenderer {
 
     private BufferedImage getWorldBanner(String worldName) {
         return worldBanners.getOrDefault(worldName, null);
+    }
+
+    private void drawStringShadow(Graphics2D g2d, String text, int x, int y, int dx, int dy, Color shadowColor) {
+        Color old = g2d.getColor();
+        g2d.setColor(shadowColor);
+        g2d.drawString(text, x + dx, y + dy);
+        g2d.setColor(old);
+    }
+
+    private void drawImageShadow(Graphics2D g2d, BufferedImage image, int x, int y, int w, int h, int dx, int dy, float alpha) {
+        if (image == null) {
+            return;
+        }
+        Composite oldComposite = g2d.getComposite();
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        g2d.drawImage(image, x + dx, y + dy, w, h, null);
+        g2d.setComposite(oldComposite);
     }
 }

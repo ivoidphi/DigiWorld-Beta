@@ -91,6 +91,10 @@ public class Player extends Entity {
         double pTop = checkY + inset;
         double pRight = checkX + size - inset;
         double pBottom = checkY + size - inset;
+        double currentLeft = x + inset;
+        double currentTop = y + inset;
+        double currentRight = x + size - inset;
+        double currentBottom = y + size - inset;
         for (Npc npc : world.getNpcs()) {
             double nLeft = npc.getX() + inset;
             double nTop = npc.getY() + inset;
@@ -98,10 +102,25 @@ public class Player extends Entity {
             double nBottom = npc.getY() + npc.getSize() - inset;
             boolean overlap = pLeft < nRight && pRight > nLeft && pTop < nBottom && pBottom > nTop;
             if (overlap) {
+                double nextOverlapArea = overlapArea(pLeft, pTop, pRight, pBottom, nLeft, nTop, nRight, nBottom);
+                boolean currentlyOverlapping = currentLeft < nRight && currentRight > nLeft && currentTop < nBottom && currentBottom > nTop;
+                if (currentlyOverlapping) {
+                    double currentOverlapArea = overlapArea(currentLeft, currentTop, currentRight, currentBottom, nLeft, nTop, nRight, nBottom);
+                    if (nextOverlapArea + 0.001 < currentOverlapArea) {
+                        continue;
+                    }
+                }
                 return false;
             }
         }
         return true;
+    }
+
+    private double overlapArea(double aLeft, double aTop, double aRight, double aBottom,
+                               double bLeft, double bTop, double bRight, double bBottom) {
+        double overlapW = Math.max(0.0, Math.min(aRight, bRight) - Math.max(aLeft, bLeft));
+        double overlapH = Math.max(0.0, Math.min(aBottom, bBottom) - Math.max(aTop, bTop));
+        return overlapW * overlapH;
     }
 
     public void teleportToTile(int tileX, int tileY) {

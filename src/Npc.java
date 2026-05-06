@@ -60,6 +60,10 @@ public class Npc extends Entity {
 
     @Override
     public void update(double deltaSeconds, World world) {
+        update(deltaSeconds, world, null);
+    }
+
+    public void update(double deltaSeconds, World world, Player player) {
         if (interactionLocked) {
             moving = false;
             updateBobbing(deltaSeconds);
@@ -96,8 +100,30 @@ public class Npc extends Entity {
         moving = true;
         updateBobbing(deltaSeconds);
         updateFacing(dx, dy);
-        x = nx;
-        y = ny;
+        if (!overlapsPlayer(nx, ny, player)) {
+            x = nx;
+            y = ny;
+        } else {
+            moving = false;
+            stopTimerSeconds = 0.2;
+        }
+    }
+
+    private boolean overlapsPlayer(double checkX, double checkY, Player player) {
+        if (player == null) {
+            return false;
+        }
+        double inset = 2.0;
+        double nLeft = checkX + inset;
+        double nTop = checkY + inset;
+        double nRight = checkX + size - inset;
+        double nBottom = checkY + size - inset;
+
+        double pLeft = player.getX() + inset;
+        double pTop = player.getY() + inset;
+        double pRight = player.getX() + player.getSize() - inset;
+        double pBottom = player.getY() + player.getSize() - inset;
+        return nLeft < pRight && nRight > pLeft && nTop < pBottom && nBottom > pTop;
     }
 
     public String getName() {
