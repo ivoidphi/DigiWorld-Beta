@@ -27,7 +27,8 @@ public class GameUiRenderer {
         this.worldBanners = loadWorldBanners();
     }
 
-    public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective) {
+    public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc,
+            String interactionMessage, String currentObjective) {
         BufferedImage banner = getWorldBanner(current.getName());
         if (banner != null) {
             int bannerX = (logicalWidth - banner.getWidth()) / 2;
@@ -97,8 +98,10 @@ public class GameUiRenderer {
         g2d.drawImage(interactIcon, x, y, size, size, null);
     }
 
-    public void drawNpcSpeechBubble(Graphics2D g2d, Npc speechBubbleNpc, double speechBubbleTimer, String speechBubbleText, Camera camera) {
-        if (speechBubbleNpc == null || speechBubbleTimer <= 0.0 || speechBubbleText == null || speechBubbleText.isBlank()) {
+    public void drawNpcSpeechBubble(Graphics2D g2d, Npc speechBubbleNpc, double speechBubbleTimer,
+            String speechBubbleText, Camera camera) {
+        if (speechBubbleNpc == null || speechBubbleTimer <= 0.0 || speechBubbleText == null
+                || speechBubbleText.isBlank()) {
             return;
         }
         g2d.setFont(UIFont.regular(10f));
@@ -124,7 +127,8 @@ public class GameUiRenderer {
         }
     }
 
-    public void drawMenu(Graphics2D g2d, Npc activeNpc, World currentWorld, boolean starterSequenceCompleted, boolean canGoNextWorld, boolean canGoPreviousWorld, boolean hasDialogue, boolean hasSeenDialogue) {
+    public void drawMenu(Graphics2D g2d, Npc activeNpc, World currentWorld, boolean starterSequenceCompleted,
+            boolean canGoNextWorld, boolean canGoPreviousWorld, boolean hasDialogue, boolean hasSeenDialogue) {
         int boxWidth = 360;
         int boxHeight = 110;
         int x = (logicalWidth - boxWidth) / 2;
@@ -160,7 +164,8 @@ public class GameUiRenderer {
         g2d.drawString("E or ESC: Close", x + 14, y + 90);
     }
 
-    public void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices, int selectedIndex, LinkedHashSet<Integer> selectedStarterIndices, GameState gameState) {
+    public void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices,
+            int selectedIndex, LinkedHashSet<Integer> selectedStarterIndices, GameState gameState) {
         int boxWidth = Math.min(760, logicalWidth - 40);
         int boxHeight = Math.min(420, logicalHeight - 30);
         int x = (logicalWidth - boxWidth) / 2;
@@ -220,13 +225,15 @@ public class GameUiRenderer {
         g2d.setColor(new Color(230, 230, 240));
         g2d.setFont(UIFont.regular(10f));
         if (gameState == GameState.STARTER_SELECT) {
-            g2d.drawString("WASD/Arrows/1-9 move | ENTER add/remove | Pick 3 beasts | ESC cancel", x + 16, y + boxHeight - 10);
+            g2d.drawString("WASD/Arrows/1-9 move | ENTER add/remove | Pick 3 beasts | ESC cancel", x + 16,
+                    y + boxHeight - 10);
         } else {
             g2d.drawString("A/D or 1-3 choose | ENTER confirm | ESC cancel", x + 16, y + boxHeight - 10);
         }
     }
 
-    public void drawDialogueAboveNpc(Graphics2D g2d, Npc activeNpc, DialogueController dialogueController, Player player, Camera camera) {
+    public void drawDialogueAboveNpc(Graphics2D g2d, Npc activeNpc, DialogueController dialogueController,
+            Player player, Camera camera) {
         if (activeNpc == null) {
             return;
         }
@@ -279,7 +286,7 @@ public class GameUiRenderer {
 
     private String[] wrapTextByWidth(Graphics2D g2d, String text, int maxWidthPx) {
         if (text == null || text.isEmpty()) {
-            return new String[]{""};
+            return new String[] { "" };
         }
         FontMetrics fm = g2d.getFontMetrics(UIFont.regular(10f));
         List<String> lines = new ArrayList<>();
@@ -305,19 +312,11 @@ public class GameUiRenderer {
     }
 
     private BufferedImage loadInventoryIcon() {
-        try {
-            return ImageIO.read(new File("res/icons/backpack.png"));
-        } catch (Exception ignored) {
-            return null;
-        }
+        return ResourceLoader.loadImage("res/icons/backpack.png");
     }
 
     private BufferedImage loadInteractIcon() {
-        try {
-            return ImageIO.read(new File("res/icons/interact.png"));
-        } catch (Exception ignored) {
-            return null;
-        }
+        return ResourceLoader.loadImage("res/icons/interact.png");
     }
 
     private java.util.Map<String, BufferedImage> loadWorldBanners() {
@@ -330,11 +329,7 @@ public class GameUiRenderer {
     }
 
     private BufferedImage loadBanner(String path) {
-        try {
-            return ImageIO.read(new File(path));
-        } catch (Exception ignored) {
-            return null;
-        }
+        return ResourceLoader.loadImage(path);
     }
 
     private BufferedImage getWorldBanner(String worldName) {

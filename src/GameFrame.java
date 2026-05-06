@@ -1,15 +1,18 @@
 import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 
 public class GameFrame extends JFrame {
+    private final GamePanel panel;
+
     public GameFrame() {
         setTitle("DigiWorld - The Oten Game");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
         setUndecorated(true);
 
-        GamePanel panel = new GamePanel();
+        panel = new GamePanel();
         setContentPane(panel);
         pack();
 
@@ -19,6 +22,12 @@ public class GameFrame extends JFrame {
         } else {
             setExtendedState(JFrame.MAXIMIZED_BOTH);
         }
-        panel.startGame();
+    }
+
+    public void startGame() {
+        SwingUtilities.invokeLater(() -> {
+            panel.requestFocusInWindow();
+            panel.startGame();
+        });
     }
 }

@@ -143,10 +143,6 @@ public class Player extends Entity {
     }
 
     private static BufferedImage loadSprite(String path) {
-        try {
-            return ImageIO.read(new File(path));
-        } catch (IOException e) {
-            return null;
-        }
+        return ResourceLoader.loadImage(path);
     }
 }

@@ -26,8 +26,7 @@ public class World {
             int tileSize,
             int spawnTileX,
             int spawnTileY,
-            Npc[] npcs
-    ) {
+            Npc[] npcs) {
         this.name = name;
         this.spawnTileX = spawnTileX;
         this.spawnTileY = spawnTileY;
@@ -73,12 +72,15 @@ public class World {
                     double wave = 0.1 * Math.sin(x * 0.45) - 0.08 * Math.cos(y * 0.33);
                     isLand = diamond <= (1.12 + wave);
                 } else if (shapeVariant == 2) {
-                    double left = Math.pow((x - (cx - rx * 0.28)) / (rx * 0.84), 2) + Math.pow((y - cy) / (ry * 0.9), 2);
-                    double right = Math.pow((x - (cx + rx * 0.28)) / (rx * 0.84), 2) + Math.pow((y - cy) / (ry * 0.9), 2);
+                    double left = Math.pow((x - (cx - rx * 0.28)) / (rx * 0.84), 2)
+                            + Math.pow((y - cy) / (ry * 0.9), 2);
+                    double right = Math.pow((x - (cx + rx * 0.28)) / (rx * 0.84), 2)
+                            + Math.pow((y - cy) / (ry * 0.9), 2);
                     isLand = left <= 1.0 || right <= 1.0;
                 } else {
                     double outer = nx * nx + ny * ny;
-                    double inner = Math.pow((x - (cx + rx * 0.22)) / (rx * 0.72), 2) + Math.pow((y - cy) / (ry * 0.75), 2);
+                    double inner = Math.pow((x - (cx + rx * 0.22)) / (rx * 0.72), 2)
+                            + Math.pow((y - cy) / (ry * 0.75), 2);
                     isLand = outer <= 1.0 && inner >= 0.86;
                 }
 
@@ -121,7 +123,8 @@ public class World {
             }
         }
 
-        // Sprinkle flower grass (grass3) as smooth, sparse patches for visual variation.
+        // Sprinkle flower grass (grass3) as smooth, sparse patches for visual
+        // variation.
         double[][] flowerNoise = new double[tiles.length][tiles[0].length];
         for (int y = 1; y < tiles.length - 1; y++) {
             for (int x = 1; x < tiles[0].length - 1; x++) {
@@ -161,7 +164,8 @@ public class World {
                 if (isProtectedPoint(x, y, tileSize)) {
                     continue;
                 }
-                if ((tiles[y][x] == TileType.GRASS1 || tiles[y][x] == TileType.GRASS2) && flowerNoise[y][x] > flowerThreshold) {
+                if ((tiles[y][x] == TileType.GRASS1 || tiles[y][x] == TileType.GRASS2)
+                        && flowerNoise[y][x] > flowerThreshold) {
                     tiles[y][x] = TileType.GRASS3;
                 }
             }
@@ -227,7 +231,8 @@ public class World {
         return false;
     }
 
-    public void renderTiles(Graphics2D g2d, Camera camera, int tileSize, int viewportWidth, int viewportHeight, double windTimeSeconds) {
+    public void renderTiles(Graphics2D g2d, Camera camera, int tileSize, int viewportWidth, int viewportHeight,
+            double windTimeSeconds) {
         int startTileX = Math.max(0, camera.getX() / tileSize);
         int startTileY = Math.max(0, camera.getY() / tileSize);
         int endTileX = Math.min(getWidth() - 1, (camera.getX() + viewportWidth) / tileSize + 1);
@@ -259,7 +264,8 @@ public class World {
         }
     }
 
-    public void renderWindLines(Graphics2D g2d, Camera camera, int viewportWidth, int viewportHeight, double windTimeSeconds) {
+    public void renderWindLines(Graphics2D g2d, Camera camera, int viewportWidth, int viewportHeight,
+            double windTimeSeconds) {
         int camX = camera.getX();
         int camY = camera.getY();
         g2d.setColor(new Color(255, 255, 255, 36));
@@ -346,11 +352,7 @@ public class World {
     }
 
     private static BufferedImage loadTile(String path) {
-        try {
-            return ImageIO.read(new File(path));
-        } catch (IOException e) {
-            return null;
-        }
+        return ResourceLoader.loadImage(path);
     }
 
     private static double[][] createWindStreaks(int widthTiles, int heightTiles, int tileSize, int seed) {
@@ -360,13 +362,13 @@ public class World {
         double worldWidth = widthTiles * tileSize;
         double worldHeight = heightTiles * tileSize;
         for (int i = 0; i < count; i++) {
-            streaks[i][0] = random.nextDouble() * worldWidth;               // x
-            streaks[i][1] = random.nextDouble() * worldHeight;              // y
-            streaks[i][2] = 16 + random.nextDouble() * 24;                  // len
-            streaks[i][3] = 22 + random.nextDouble() * 40;                  // speed px/s
-            streaks[i][4] = random.nextDouble() * Math.PI * 2.0;            // phase
-            streaks[i][5] = 1.0 + random.nextDouble() * 3.0;                // sway amplitude
-            streaks[i][6] = worldWidth;                                      // wrap width
+            streaks[i][0] = random.nextDouble() * worldWidth; // x
+            streaks[i][1] = random.nextDouble() * worldHeight; // y
+            streaks[i][2] = 16 + random.nextDouble() * 24; // len
+            streaks[i][3] = 22 + random.nextDouble() * 40; // speed px/s
+            streaks[i][4] = random.nextDouble() * Math.PI * 2.0; // phase
+            streaks[i][5] = 1.0 + random.nextDouble() * 3.0; // sway amplitude
+            streaks[i][6] = worldWidth; // wrap width
         }
         return streaks;
     }

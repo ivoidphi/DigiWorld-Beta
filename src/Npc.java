@@ -40,8 +40,7 @@ public class Npc extends Entity {
             String forwardPath,
             String backPath,
             String leftPath,
-            String rightPath
-    ) {
+            String rightPath) {
         super(patrolPoints[0][0] * tileSize, patrolPoints[0][1] * tileSize, size, color);
         this.name = name;
         this.tileSize = tileSize;
@@ -149,10 +148,6 @@ public class Npc extends Entity {
         if (path == null || path.isEmpty()) {
             return null;
         }
-        try {
-            return ImageIO.read(new File(path));
-        } catch (IOException e) {
-            return null;
-        }
+        return ResourceLoader.loadImage(path);
     }
 }

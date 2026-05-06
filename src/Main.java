@@ -3,6 +3,7 @@ public class Main {
         javax.swing.SwingUtilities.invokeLater(() -> {
             GameFrame frame = new GameFrame();
             frame.setVisible(true);
+            frame.startGame();
         });
     }
 }
