@@ -172,17 +172,21 @@ public class SoundManager {
     }
 
     // PLAY MUSIC
-    private void playMusic(String path) {
+    public synchronized void playMusic(String path) {
 
-        // DON'T RESTART SAME MUSIC
-        if (path.equals(currentMusicPath)) {
+        if (path == null || path.isBlank()) {
+            return;
+        }
+
+        // SAME MUSIC ALREADY PLAYING
+        if (path.equals(currentMusicPath)
+                && currentClip != null
+                && currentClip.isRunning()) {
 
             return;
         }
 
-        currentMusicPath = path;
-
-        // STOP OLD MUSIC
+        // STOP OLD MUSIC FIRST
         stopMusic();
 
         try {
@@ -192,7 +196,7 @@ public class SoundManager {
             if (!audioFile.exists()) {
 
                 System.err.println(
-                        "[SoundManager] Sound file not found: "
+                        "[SoundManager] File not found: "
                                 + path);
 
                 return;
@@ -204,12 +208,18 @@ public class SoundManager {
 
             clip.open(audioStream);
 
+            // CLOSE STREAM AFTER OPENING
+            audioStream.close();
+
             clip.loop(Clip.LOOP_CONTINUOUSLY);
 
             clip.start();
 
             // SAVE CURRENT CLIP
             currentClip = clip;
+
+            // SAVE CURRENT PATH
+            currentMusicPath = path;
 
             System.out.println(
                     "[SoundManager] Playing music: "
