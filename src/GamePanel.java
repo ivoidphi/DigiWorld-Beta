@@ -30,10 +30,11 @@ public class GamePanel extends JPanel implements Runnable {
     private final Camera camera;
     private final World[] worlds;
     private final BattleSystem battleSystem;
-    private final SoundManager soundManager; // Handles background world music and battle music.
+    private SoundManager soundManager = new SoundManager();
     private final GameUiRenderer uiRenderer;
     private final Inventory inventory;
     private final Random random;
+
     private int worldIndex;
     private final Player player;
 
@@ -121,12 +122,13 @@ public class GamePanel extends JPanel implements Runnable {
         camera = new Camera();
         worlds = createWorlds();
         battleSystem = new BattleSystem();
-        soundManager = new SoundManager(); // Initialize music manager before rendering begins.
+
         battleSystem.setSoundManager(soundManager); // Wire battle sound effects into the battle system.
         soundManager.playWorldMusic(worlds[0].getName()); // Start the first world's background music.
         uiRenderer = new GameUiRenderer(LOGICAL_WIDTH, LOGICAL_HEIGHT, PLAYER_NAME, battleSystem);
         inventory = new Inventory();
         random = new Random();
+
         worldIndex = 0;
         player = new Player(worlds[0].getSpawnTileX() * TILE_SIZE, worlds[0].getSpawnTileY() * TILE_SIZE, TILE_SIZE,
                 input, TILE_SIZE);
@@ -196,6 +198,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     public void startGame() {
         requestFocusInWindow();
+        soundManager.playWorldMusic(worlds[worldIndex].getName());
         gameThread = new Thread(this, "game-loop");
         gameThread.start();
     }
@@ -224,6 +227,7 @@ public class GamePanel extends JPanel implements Runnable {
         windTimeSeconds += deltaSeconds;
         World current = worlds[worldIndex];
 
+        // Handle fade transitions
         if (fadeAlpha > 0.001) {
             fadeAlpha += (fadeTarget - fadeAlpha) * fadeSpeed * deltaSeconds;
             if (Math.abs(fadeTarget - fadeAlpha) < 0.001) {
@@ -234,6 +238,9 @@ public class GamePanel extends JPanel implements Runnable {
             }
         }
 
+        // -------------------------
+        // BATTLE STATE
+        // -------------------------
         if (gameState == GameState.BATTLE) {
             if (clickPending) {
                 battleSystem.handleClick(pendingClickX, pendingClickY);
@@ -241,23 +248,33 @@ public class GamePanel extends JPanel implements Runnable {
             }
             battleSystem.update(deltaSeconds);
             String result = battleSystem.handleInput(input);
+
+            // If battle just ended
             if (!battleSystem.isActive()) {
-                soundManager.playWorldMusic(current.getName()); // Return to exploration music when combat ends.
+                soundManager.playWorldMusic(current.getName()); // Resume correct world music
                 encounterCooldownTimer = 2.0 + random.nextDouble() * 3.0;
+
                 String caughtCreature = battleSystem.consumeCaughtCreatureName();
                 if (caughtCreature != null && !caughtCreature.isBlank()) {
                     inventory.addBeast(caughtCreature);
                 }
+
                 String msg = battleSystem.getMessage();
                 applyBattleOutcomeProgress();
+
                 if (bossArenaActive && msg.contains("won")) {
                     handleBossVictory();
                 }
+
                 gameState = GameState.EXPLORATION;
                 interactionMenuOpen = false;
                 activeNpc = null;
                 interactionMessage = bossArenaActive ? interactionMessage : msg;
             }
+
+            // -------------------------
+            // OTHER STATES
+            // -------------------------
         } else if (gameState == GameState.INVENTORY) {
             handleInventoryInput();
         } else if (gameState == GameState.NPC_MENU) {
@@ -288,24 +305,38 @@ public class GamePanel extends JPanel implements Runnable {
                 interactionMessage = "";
                 return;
             }
+
             double beforeX = player.getX();
             double beforeY = player.getY();
             player.update(deltaSeconds, current);
             spawnMovementParticles(current, beforeX, beforeY);
+
             Npc nearbyNpc = getNearbyNpc(current);
             if (input.consumeJustPressed(KeyEvent.VK_E) && nearbyNpc != null) {
                 activeNpc = nearbyNpc;
                 activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
                 startNpcDialogue(nearbyNpc, current);
             }
+
+            // Call encounter methods normally
             checkWildEncounter(current);
             checkBossTrigger(current);
+
+            // 🔴 Add music trigger if those methods set gameState to BATTLE
+            if (gameState == GameState.BATTLE) {
+                soundManager.playCombatMusic();
+            }
+
             refreshObjectiveFromProgress();
         }
 
+        // -------------------------
+        // WORLD UPDATE
+        // -------------------------
         if (gameState != GameState.BATTLE && gameState != GameState.DIALOGUE) {
             current.update(deltaSeconds, player);
         }
+
         updateCamera(current);
         updateParticles(deltaSeconds);
         updateSpeechBubble(deltaSeconds);
@@ -313,6 +344,9 @@ public class GamePanel extends JPanel implements Runnable {
         input.endFrame();
     }
 
+    // -------------------------
+    // Battle outcome tracking
+    // -------------------------
     private void applyBattleOutcomeProgress() {
         String enemy = battleSystem.consumeLastResolvedEnemyName();
         boolean won = battleSystem.consumeLastBattleWon();
@@ -482,7 +516,7 @@ public class GamePanel extends JPanel implements Runnable {
                         new String[] {
                                 "Excellent! Now before we transport you, you will need this G-Watch, Mech-driver and Beast-Cards. Choose 3 out of these 10 Mecha Beasts." });
                 startDialogue(script,
-                        "OPEN_STARTER_SELECT|SET_NPC_STATE:profAlfredState:2|SET_OBJECTIVE:Choose 3 Mecha Beasts");
+                        "OPEN_STARTER_SELECT|SET_FLAG:starterSelectionDone|SET_NPC_STATE:profAlfredState:2|SET_OBJECTIVE:Choose 3 Mecha Beasts");
             } else if (profAlfredState == 2 && !starterSelectionDone) {
                 DialogueSequence script = DialogueFactory.createSequence(
                         new String[] { "Prof Alfred" },
@@ -976,6 +1010,7 @@ public class GamePanel extends JPanel implements Runnable {
                 camera.follow(player, world, LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE_SIZE);
                 soundManager.playWorldMusic(world.getName()); // Change background music when the player changes world.
                 fadeTarget = 0.0;
+                soundManager.playWorldMusic(worlds[worldIndex].getName());
             }
         }).start();
     }
@@ -1058,7 +1093,11 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(200, 200, 100),
-                                new int[][] { { 25, 20 }, { 25, 20 }, { 25, 20 }, { 25, 20 } })
+                                new int[][] { { 30, 23 }, { 30, 23 }, { 30, 23 }, { 30, 23 } },
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png")
                 }),
                 new World("World 4 - Collapse Zone", 60, 46, TILE_SIZE, 30, 23, new Npc[] {
                         new Npc(
@@ -1066,11 +1105,7 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(128, 214, 104),
-                                new int[][] { { 30, 23 }, { 30, 23 }, { 30, 23 }, { 30, 23 } },
-                                "res/characters/glitch-ron/glitchron-fw.png",
-                                "res/characters/glitch-ron/glitchron-b.png",
-                                "res/characters/glitch-ron/glitchron-l.png",
-                                "res/characters/glitch-ron/glitchron-r.png")
+                                new int[][] { { 30, 23 }, { 30, 23 }, { 30, 23 }, { 30, 23 } })
                 })
         };
     }
