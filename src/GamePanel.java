@@ -227,6 +227,7 @@ public class GamePanel extends JPanel implements Runnable {
         windTimeSeconds += deltaSeconds;
         World current = worlds[worldIndex];
 
+        // Handle fade transitions
         if (fadeAlpha > 0.001) {
             fadeAlpha += (fadeTarget - fadeAlpha) * fadeSpeed * deltaSeconds;
             if (Math.abs(fadeTarget - fadeAlpha) < 0.001) {
@@ -237,6 +238,9 @@ public class GamePanel extends JPanel implements Runnable {
             }
         }
 
+        // -------------------------
+        // BATTLE STATE
+        // -------------------------
         if (gameState == GameState.BATTLE) {
             if (clickPending) {
                 battleSystem.handleClick(pendingClickX, pendingClickY);
@@ -244,23 +248,33 @@ public class GamePanel extends JPanel implements Runnable {
             }
             battleSystem.update(deltaSeconds);
             String result = battleSystem.handleInput(input);
+
+            // If battle just ended
             if (!battleSystem.isActive()) {
-                soundManager.playWorldMusic(current.getName()); // Return to exploration music when combat ends.
+                soundManager.playWorldMusic(current.getName()); // Resume correct world music
                 encounterCooldownTimer = 2.0 + random.nextDouble() * 3.0;
+
                 String caughtCreature = battleSystem.consumeCaughtCreatureName();
                 if (caughtCreature != null && !caughtCreature.isBlank()) {
                     inventory.addBeast(caughtCreature);
                 }
+
                 String msg = battleSystem.getMessage();
                 applyBattleOutcomeProgress();
+
                 if (bossArenaActive && msg.contains("won")) {
                     handleBossVictory();
                 }
+
                 gameState = GameState.EXPLORATION;
                 interactionMenuOpen = false;
                 activeNpc = null;
                 interactionMessage = bossArenaActive ? interactionMessage : msg;
             }
+
+            // -------------------------
+            // OTHER STATES
+            // -------------------------
         } else if (gameState == GameState.INVENTORY) {
             handleInventoryInput();
         } else if (gameState == GameState.NPC_MENU) {
@@ -291,24 +305,38 @@ public class GamePanel extends JPanel implements Runnable {
                 interactionMessage = "";
                 return;
             }
+
             double beforeX = player.getX();
             double beforeY = player.getY();
             player.update(deltaSeconds, current);
             spawnMovementParticles(current, beforeX, beforeY);
+
             Npc nearbyNpc = getNearbyNpc(current);
             if (input.consumeJustPressed(KeyEvent.VK_E) && nearbyNpc != null) {
                 activeNpc = nearbyNpc;
                 activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
                 startNpcDialogue(nearbyNpc, current);
             }
+
+            // Call encounter methods normally
             checkWildEncounter(current);
             checkBossTrigger(current);
+
+            // 🔴 Add music trigger if those methods set gameState to BATTLE
+            if (gameState == GameState.BATTLE) {
+                soundManager.playCombatMusic();
+            }
+
             refreshObjectiveFromProgress();
         }
 
+        // -------------------------
+        // WORLD UPDATE
+        // -------------------------
         if (gameState != GameState.BATTLE && gameState != GameState.DIALOGUE) {
             current.update(deltaSeconds, player);
         }
+
         updateCamera(current);
         updateParticles(deltaSeconds);
         updateSpeechBubble(deltaSeconds);
@@ -316,6 +344,9 @@ public class GamePanel extends JPanel implements Runnable {
         input.endFrame();
     }
 
+    // -------------------------
+    // Battle outcome tracking
+    // -------------------------
     private void applyBattleOutcomeProgress() {
         String enemy = battleSystem.consumeLastResolvedEnemyName();
         boolean won = battleSystem.consumeLastBattleWon();
@@ -1024,7 +1055,11 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(200, 80, 80),
-                                new int[][] { { 25, 6 }, { 25, 6 }, { 25, 6 }, { 25, 6 } }),
+                                new int[][] { { 25, 6 }, { 25, 6 }, { 25, 6 }, { 25, 6 } },
+                                "res/characters/aldrich/aldrich-fw.png",
+                                "res/characters/aldrich/aldrich-b.png",
+                                "res/characters/aldrich/aldrich-l.png",
+                                "res/characters/aldrich/aldrich-r.png"),
                         new Npc("Prof Alfred", TILE_SIZE, TILE_SIZE, new Color(214, 93, 177),
                                 new int[][] { { 22, 18 }, { 24, 18 }, { 24, 20 }, { 22, 20 } },
                                 "res/characters/professor-alfred/profalfred-fw.png",
@@ -1038,19 +1073,31 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(230, 160, 75),
-                                new int[][] { { 28, 21 }, { 28, 21 }, { 28, 21 }, { 28, 21 } }),
+                                new int[][] { { 28, 21 }, { 28, 21 }, { 28, 21 }, { 28, 21 } },
+                                "res/characters/ace-jazz/acejazz-fw.png",
+                                "res/characters/ace-jazz/acejazz-b.png",
+                                "res/characters/ace-jazz/acejazz-l.png",
+                                "res/characters/ace-jazz/acejazz-r.png"),
                         new Npc(
                                 "Trialmaster",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(180, 130, 214),
-                                new int[][] { { 28, 8 }, { 28, 8 }, { 28, 8 }, { 28, 8 } }),
+                                new int[][] { { 28, 8 }, { 28, 8 }, { 28, 8 }, { 28, 8 } },
+                                "res/characters/trialmaster/trialmaster-fw.png",
+                                "res/characters/trialmaster/trialmaster-b.png",
+                                "res/characters/trialmaster/trialmaster-l.png",
+                                "res/characters/trialmaster/trialmaster-r.png"),
                         new Npc(
                                 "Boss Rhonn",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(200, 200, 100),
-                                new int[][] { { 25, 20 }, { 25, 20 }, { 25, 20 }, { 25, 20 } })
+                                new int[][] { { 30, 23 }, { 30, 23 }, { 30, 23 }, { 30, 23 } },
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png")
                 }),
                 new World("World 4 - Collapse Zone", 60, 46, TILE_SIZE, 30, 23, new Npc[] {
                         new Npc(
@@ -1476,7 +1523,16 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private String pickRandomWildEnemy() {
-        return enemyChoices[random.nextInt(enemyChoices.length)];
+        List<String> pool = new ArrayList<>();
+        for (String enemy : enemyChoices) {
+            if (!"All Mighty".equalsIgnoreCase(enemy)) {
+                pool.add(enemy);
+            }
+        }
+        if (pool.isEmpty()) {
+            return "Voltchu";
+        }
+        return pool.get(random.nextInt(pool.size()));
     }
 
     private void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices,

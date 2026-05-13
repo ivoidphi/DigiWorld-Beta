@@ -163,6 +163,8 @@ public class SoundManager {
                 currentClip.close();
 
                 currentClip = null;
+
+                currentMusicPath = "";
             }
 
         } catch (Exception e) {
@@ -173,67 +175,36 @@ public class SoundManager {
 
     // PLAY MUSIC
     public synchronized void playMusic(String path) {
-
         if (path == null || path.isBlank()) {
             return;
         }
 
-        // SAME MUSIC ALREADY PLAYING
-        if (path.equals(currentMusicPath)
-                && currentClip != null
-                && currentClip.isRunning()) {
-
-            return;
-        }
-
-        // STOP OLD MUSIC FIRST
+        // Always stop old music first
         stopMusic();
 
         try {
-
             File audioFile = resolveResourceFile(path);
 
             if (!audioFile.exists()) {
-
-                System.err.println(
-                        "[SoundManager] File not found: "
-                                + path);
-
-                return;
+                System.err.println("[SoundManager] File not found: " + path);
+                return; // old clip already stopped
             }
 
             AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
-
             Clip clip = AudioSystem.getClip();
-
             clip.open(audioStream);
-
-            // CLOSE STREAM AFTER OPENING
             audioStream.close();
 
             clip.loop(Clip.LOOP_CONTINUOUSLY);
-
             clip.start();
 
-            // SAVE CURRENT CLIP
             currentClip = clip;
-
-            // SAVE CURRENT PATH
             currentMusicPath = path;
 
-            System.out.println(
-                    "[SoundManager] Playing music: "
-                            + path);
+            System.out.println("[SoundManager] Playing music: " + path);
 
-        } catch (
-                IOException
-                | UnsupportedAudioFileException
-                | LineUnavailableException e) {
-
-            System.err.println(
-                    "[SoundManager] Failed to play sound: "
-                            + path);
-
+        } catch (IOException | UnsupportedAudioFileException | LineUnavailableException e) {
+            System.err.println("[SoundManager] Failed to play sound: " + path);
             e.printStackTrace();
         }
     }
