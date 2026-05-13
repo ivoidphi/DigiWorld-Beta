@@ -23,13 +23,29 @@ public class Inventory {
     private final List<String> beasts;
     private final LinkedHashSet<Integer> equippedIndices;
     private final Map<String, BufferedImage> iconCache;
+    private final Set<String> items;
     private int selectedIndex;
 
     public Inventory() {
         this.beasts = new ArrayList<>();
         this.equippedIndices = new LinkedHashSet<>();
         this.iconCache = new HashMap<>();
+        this.items = new LinkedHashSet<>();
         this.selectedIndex = 0;
+    }
+
+    public void addItem(String itemName) {
+        if (itemName == null || itemName.isBlank()) {
+            return;
+        }
+        items.add(itemName.trim());
+    }
+
+    public boolean hasItem(String itemName) {
+        if (itemName == null || itemName.isBlank()) {
+            return false;
+        }
+        return items.contains(itemName.trim());
     }
 
     public void addBeast(String beastName) {

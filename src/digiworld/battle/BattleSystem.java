@@ -92,7 +92,6 @@ public class BattleSystem {
     private BufferedImage blurredBattleBackground;
     private final Map<String, BufferedImage> beastSpriteCache;
     private final Map<String, BufferedImage> beastSpriteHitCache;
-    private SoundManager soundManager;
 
     public BattleSystem() {
         playerMoves = BeastCatalog.movesFor("Nokami");
@@ -154,10 +153,6 @@ public class BattleSystem {
         message = "Choose your beast for this battle.";
         lastResolvedEnemyName = "";
         lastBattleWon = false;
-    }
-
-    public void setSoundManager(SoundManager soundManager) {
-        this.soundManager = soundManager;
     }
 
     public String consumeLastResolvedEnemyName() {

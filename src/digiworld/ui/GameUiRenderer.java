@@ -26,6 +26,7 @@ public class GameUiRenderer {
     private final BufferedImage inventoryIcon;
     private final BufferedImage interactIcon;
     private final java.util.Map<String, BufferedImage> worldBanners;
+    private final java.util.Map<String, BufferedImage> dialoguePortraits;
 
     public GameUiRenderer(int logicalWidth, int logicalHeight, String playerName, BattleSystem battleSystem) {
         this.logicalWidth = logicalWidth;
@@ -35,6 +36,7 @@ public class GameUiRenderer {
         this.inventoryIcon = loadInventoryIcon();
         this.interactIcon = loadInteractIcon();
         this.worldBanners = loadWorldBanners();
+        this.dialoguePortraits = loadDialoguePortraits();
     }
 
     public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective, double objectiveAlpha, double objectiveCompleteAlpha, boolean hasGWatch, boolean scanActive) {
@@ -48,19 +50,25 @@ public class GameUiRenderer {
             g2d.drawImage(banner, bannerX, bannerY, scaledW, scaledH, null);
         }
 
+        int objectiveX = 14;
+        int objectiveY = 22;
+        if (banner != null) {
+            int scaledH = (int) Math.round(banner.getHeight() * 1.45);
+            int bannerY = logicalHeight / 16;
+            objectiveY = bannerY + scaledH + 14;
+        }
+
         if (currentObjective != null && !currentObjective.isEmpty() && objectiveAlpha > 0.001) {
             Composite oldComposite = g2d.getComposite();
             g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) Math.max(0.0, Math.min(1.0, objectiveAlpha))));
             g2d.setFont(UIFont.bold(12f));
             String objText = "OBJ: " + currentObjective;
             int objWidth = g2d.getFontMetrics().stringWidth(objText);
-            int objX = 14;
-            int objY = 22;
             g2d.setColor(new Color(0, 0, 0, 140));
-            g2d.fillRoundRect(objX - 8, objY - 12, objWidth + 16, 18, 6, 6);
+            g2d.fillRoundRect(objectiveX - 8, objectiveY - 12, objWidth + 16, 18, 6, 6);
             g2d.setColor(new Color(255, 230, 120, 240));
-            drawStringShadow(g2d, objText, objX, objY, 1, 1, new Color(0, 0, 0, 180));
-            g2d.drawString(objText, objX, objY);
+            drawStringShadow(g2d, objText, objectiveX, objectiveY, 1, 1, new Color(0, 0, 0, 180));
+            g2d.drawString(objText, objectiveX, objectiveY);
             g2d.setComposite(oldComposite);
         }
         if (objectiveCompleteAlpha > 0.001) {
@@ -69,13 +77,11 @@ public class GameUiRenderer {
             g2d.setFont(UIFont.bold(12f));
             String done = "Objective Complete!";
             int w = g2d.getFontMetrics().stringWidth(done);
-            int x = 14;
-            int y = 42;
             g2d.setColor(new Color(0, 0, 0, 140));
-            g2d.fillRoundRect(x - 8, y - 12, w + 16, 18, 6, 6);
+            g2d.fillRoundRect(objectiveX - 8, objectiveY - 12, w + 16, 18, 6, 6);
             g2d.setColor(new Color(148, 255, 154, 240));
-            drawStringShadow(g2d, done, x, y, 1, 1, new Color(0, 0, 0, 180));
-            g2d.drawString(done, x, y);
+            drawStringShadow(g2d, done, objectiveX, objectiveY, 1, 1, new Color(0, 0, 0, 180));
+            g2d.drawString(done, objectiveX, objectiveY);
             g2d.setComposite(oldComposite);
         }
 
@@ -320,9 +326,6 @@ public class GameUiRenderer {
     }
 
     public void drawDialogueAboveNpc(Graphics2D g2d, Npc activeNpc, DialogueController dialogueController, Player player, Camera camera) {
-        if (activeNpc == null) {
-            return;
-        }
         DialoguePage page = dialogueController.getCurrentPage();
         String currentSpeaker = page.getSpeaker();
         String typed = dialogueController.getVisibleText();
@@ -343,10 +346,14 @@ public class GameUiRenderer {
         boolean speakerIsPlayer = playerName.equalsIgnoreCase(currentSpeaker);
         int anchorX = speakerIsPlayer
                 ? (int) player.getX() - camera.getX() + player.getSize() / 2
-                : (int) activeNpc.getX() - camera.getX() + activeNpc.getSize() / 2;
+                : (activeNpc != null
+                ? (int) activeNpc.getX() - camera.getX() + activeNpc.getSize() / 2
+                : (int) player.getX() - camera.getX() + player.getSize() / 2);
         int anchorY = speakerIsPlayer
                 ? (int) player.getY() - camera.getY()
-                : (int) activeNpc.getY() - camera.getY();
+                : (activeNpc != null
+                ? (int) activeNpc.getY() - camera.getY()
+                : (int) player.getY() - camera.getY());
         int x = anchorX - boxWidth / 2;
         int y = anchorY - boxHeight - 22;
         x = Math.max(8, Math.min(logicalWidth - boxWidth - 8, x));
@@ -367,8 +374,21 @@ public class GameUiRenderer {
         }
         if (dialogueController.isLineFinished()) {
             g2d.setColor(new Color(200, 200, 215));
-            g2d.drawString("ENTER/SPACE continue | ESC skip", x + 10, y + boxHeight - 6);
+            g2d.drawString("ENTER/SPACE/E continue | ESC skip", x + 10, y + boxHeight - 6);
         }
+    }
+
+    private BufferedImage resolveDialoguePortrait(DialoguePage page, String speaker) {
+        if (page.getPortraitPath() != null && !page.getPortraitPath().isBlank()) {
+            BufferedImage direct = loadBanner(page.getPortraitPath());
+            if (direct != null) {
+                return direct;
+            }
+        }
+        if (speaker == null) {
+            return null;
+        }
+        return dialoguePortraits.getOrDefault(speaker.trim().toLowerCase(), null);
     }
 
     private String[] wrapTextByWidth(Graphics2D g2d, String text, int maxWidthPx) {
@@ -420,6 +440,15 @@ public class GameUiRenderer {
         map.put("World 2 - Alpha Village", loadBanner("res/ui/alpha-village.png"));
         map.put("World 3 - Beta City", loadBanner("res/ui/beta-city.png"));
         map.put("World 4 - Collapse Zone", loadBanner("res/ui/the-collapse-of-beta-city.png"));
+        return map;
+    }
+
+    private java.util.Map<String, BufferedImage> loadDialoguePortraits() {
+        java.util.Map<String, BufferedImage> map = new java.util.HashMap<>();
+        map.put("player", loadBanner("res/characters/player/player-fw.png"));
+        map.put("professor alfred", loadBanner("res/characters/professor-alfred/profalfred-fw.png"));
+        map.put("general edrian", loadBanner("res/characters/gen-ed/gened-fw.png"));
+        map.put("chief rei", loadBanner("res/characters/chief-rei/chiefrei-fw.png"));
         return map;
     }
 

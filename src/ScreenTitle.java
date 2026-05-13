@@ -21,6 +21,8 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
+import digiworld.app.GameFrame;
+
 public class ScreenTitle extends JFrame {
 
         private static final String GIF_NAME = "res/DIGIWORLD.gif";

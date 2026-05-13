@@ -70,6 +70,10 @@ public class SoundManager {
         playMusic(combatMusicPath);
     }
 
+    public void playTeleportSound() {
+        playSoundEffect("res/sounds/teleport.wav");
+    }
+
     public void stopMusic() {
         try {
             if (currentClip != null) {

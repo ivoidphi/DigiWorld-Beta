@@ -9,10 +9,16 @@ import digiworld.ui.*;
 public class DialoguePage {
     private final String speaker;
     private final String text;
+    private final String portraitPath;
 
     public DialoguePage(String speaker, String text) {
+        this(speaker, text, null);
+    }
+
+    public DialoguePage(String speaker, String text, String portraitPath) {
         this.speaker = speaker == null ? "" : speaker;
         this.text = text == null ? "" : text;
+        this.portraitPath = portraitPath;
     }
 
     public String getSpeaker() {
@@ -21,5 +27,9 @@ public class DialoguePage {
 
     public String getText() {
         return text;
+    }
+
+    public String getPortraitPath() {
+        return portraitPath;
     }
 }

@@ -16,12 +16,35 @@ public final class DialogueFactory {
         List<DialoguePage> pages = new ArrayList<>();
         int count = Math.min(speakers.length, blocks.length);
         for (int i = 0; i < count; i++) {
-            List<String> chunks = splitIntoSentenceChunks(blocks[i], 2);
+            String normalizedSpeaker = normalizeSpeaker(speakers[i]);
+            String normalizedBlock = normalizeText(blocks[i]);
+            List<String> chunks = splitIntoSentenceChunks(normalizedBlock, 2);
             for (String chunk : chunks) {
-                pages.add(new DialoguePage(speakers[i], chunk));
+                pages.add(new DialoguePage(normalizedSpeaker, chunk));
             }
         }
         return new DialogueSequence(pages);
+    }
+
+    private static String normalizeSpeaker(String speaker) {
+        if (speaker == null) {
+            return "";
+        }
+        String s = speaker.trim();
+        if (s.equalsIgnoreCase("professor ai-p") || s.equalsIgnoreCase("alfred ai-p")) {
+            return "Professor Alfred";
+        }
+        return s;
+    }
+
+    private static String normalizeText(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text
+                .replace("Professor Ai-P", "Professor Alfred")
+                .replace("Alfred Ai-P", "Professor Alfred");
+
     }
 
     private static List<String> splitIntoSentenceChunks(String text, int sentencesPerChunk) {

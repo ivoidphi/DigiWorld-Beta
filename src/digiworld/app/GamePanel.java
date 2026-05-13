@@ -5,6 +5,7 @@ import digiworld.audio.SoundManager;
 import digiworld.battle.*;
 import digiworld.core.*;
 import digiworld.dialogue.*;
+import digiworld.maps.*;
 import digiworld.ui.*;
 
 import javax.swing.JPanel;
@@ -18,6 +19,7 @@ import java.awt.image.BufferedImage;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HashMap;
@@ -152,6 +154,17 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean bossArenaActive;
     private int currentBossWorldIndex;
     private final QuestManager questManager;
+    private boolean alphaArrivalDialogueDone;
+    private boolean autoCloseDialogueWhenFinished;
+    private double autoCloseDialogueTimer;
+    private boolean aldrichObjectiveTriggered;
+    private boolean pendingStage1ReturnCutscene;
+    private boolean pendingBetaIntroDialogue;
+    private static final int HOMETOWN_TELEPORT_DOOR_TILE_X = 29;
+    private static final int HOMETOWN_TELEPORT_DOOR_TILE_Y = 17;
+    private boolean teleportDoorLockedMessageShown;
+    private boolean teleportInProgress;
+    private double teleportDoorProximity;
 
     public GamePanel() {
         setPreferredSize(new Dimension(SCREEN_WIDTH, SCREEN_HEIGHT));
@@ -266,6 +279,15 @@ public class GamePanel extends JPanel implements Runnable {
         alphaTutorialTriggered = false;
         bossArenaActive = false;
         currentBossWorldIndex = -1;
+        alphaArrivalDialogueDone = false;
+        autoCloseDialogueWhenFinished = false;
+        autoCloseDialogueTimer = 0.0;
+        aldrichObjectiveTriggered = false;
+        pendingStage1ReturnCutscene = false;
+        pendingBetaIntroDialogue = false;
+        teleportDoorLockedMessageShown = false;
+        teleportInProgress = false;
+        teleportDoorProximity = 0.0;
         soundManager.playWorldMusic(worlds[worldIndex].getName());
     }
 
@@ -338,17 +360,21 @@ public class GamePanel extends JPanel implements Runnable {
                 if (vineratopsTrackedBattleActive) {
                     if (msg != null && msg.toLowerCase().contains("won")) {
                         vineratopsJustWon = true;
-                        teleportWithFade(0);
                     }
                     vineratopsTrackedBattleActive = false;
                 }
-                if (bossArenaActive && msg != null && msg.contains("won")) {
+                boolean bossWon = msg != null && msg.toLowerCase().contains("won");
+                if (bossArenaActive && bossWon) {
                     handleBossVictory();
+                } else if (bossArenaActive && !bossWon) {
+                    handleBossDefeat();
                 }
-                gameState = GameState.EXPLORATION;
-                interactionMenuOpen = false;
-                activeNpc = null;
-                interactionMessage = vineratopsJustWon ? "Announcer: Tutorial complete! Return to Professor Alfred in the lab." : (bossArenaActive ? interactionMessage : msg);
+                if (gameState == GameState.BATTLE) {
+                    gameState = GameState.EXPLORATION;
+                    interactionMenuOpen = false;
+                    activeNpc = null;
+                }
+                interactionMessage = vineratopsJustWon ? "Wild Vineratops defeated." : (bossArenaActive ? interactionMessage : msg);
                 soundManager.playWorldMusic(current.getName());
             }
         } else if (gameState == GameState.INVENTORY) {
@@ -388,6 +414,7 @@ public class GamePanel extends JPanel implements Runnable {
             double beforeY = player.getY();
             player.update(deltaSeconds, current);
             spawnMovementParticles(current, beforeX, beforeY);
+            updateHometownTeleportDoor(current);
             Npc nearbyNpc = getNearbyNpc(current);
             if (input.consumeJustPressed(KeyEvent.VK_E) && nearbyNpc != null) {
                 if (interactionCooldownTimer > 0.0) {
@@ -402,10 +429,12 @@ public class GamePanel extends JPanel implements Runnable {
             }
             checkWildEncounter(current);
             checkBossTrigger(current);
+            maybeStartAlphaArrivalDialogue(current);
+            updateAldrichProximityObjective(current);
             refreshObjectiveFromProgress();
         }
 
-        if (gameState != GameState.BATTLE && gameState != GameState.DIALOGUE) {
+        if (gameState != GameState.BATTLE && gameState != GameState.DIALOGUE && gameState != GameState.STARTER_SELECT) {
             current.update(deltaSeconds, player);
         }
         updateCamera(current);
@@ -434,9 +463,8 @@ public class GamePanel extends JPanel implements Runnable {
             hiddenVineratopsTileX = -1;
             hiddenVineratopsTileY = -1;
             if (questManager.isStage(QuestManager.STAGE_TALKED_CHIEF_REI)) {
-                alphaBossDefeated = true;
-                betaCityUnlocked = true;
-                questManager.setQuestStage(QuestManager.STAGE_DEFEATED_ALDRICH);
+                questManager.setQuestStage(QuestManager.STAGE_COMPLETED_TUTORIAL);
+                setObjective("Reach the Heart of the Forest");
             }
         } else if ("zyuugor".equals(key)) {
             defeatedWildZyuugor = true;
@@ -455,6 +483,10 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void refreshObjectiveFromProgress() {
+        if (questManager.isStage(QuestManager.STAGE_COMPLETED_TUTORIAL) && aldrichObjectiveTriggered) {
+            setObjective("Defeat Aldrich");
+            return;
+        }
         setObjective(questManager.objectiveForStage());
     }
 
@@ -499,11 +531,11 @@ public class GamePanel extends JPanel implements Runnable {
                 }
             }
             case COMPLETE_FADE_IN -> {
-                objectiveCompleteAlpha = Math.min(1.0, objectiveCompleteAlpha + (deltaSeconds / 0.20));
+                objectiveCompleteAlpha = Math.min(1.0, objectiveCompleteAlpha + (deltaSeconds / 0.10));
                 if (objectiveCompleteAlpha >= 0.999) {
                     objectiveCompleteAlpha = 1.0;
                     objectiveTransitionPhase = ObjectiveTransitionPhase.COMPLETE_HOLD;
-                    objectivePhaseTimer = 2.0;
+                    objectivePhaseTimer = 0.45;
                 }
             }
             case COMPLETE_HOLD -> {
@@ -521,7 +553,7 @@ public class GamePanel extends JPanel implements Runnable {
                 }
             }
             case COMPLETE_FADE_OUT -> {
-                objectiveCompleteAlpha = Math.max(0.0, objectiveCompleteAlpha - (deltaSeconds / 0.25));
+                objectiveCompleteAlpha = Math.max(0.0, objectiveCompleteAlpha - (deltaSeconds / 0.10));
                 if (objectiveCompleteAlpha <= 0.001) {
                     objectiveCompleteAlpha = 0.0;
                     if (nextObjective != null && !nextObjective.isBlank()) {
@@ -533,7 +565,7 @@ public class GamePanel extends JPanel implements Runnable {
                 }
             }
             case NEXT_FADE_IN -> {
-                objectiveTextAlpha = Math.min(1.0, objectiveTextAlpha + (deltaSeconds / 0.25));
+                objectiveTextAlpha = Math.min(1.0, objectiveTextAlpha + (deltaSeconds / 0.12));
                 if (objectiveTextAlpha >= 0.999) {
                     objectiveTextAlpha = 1.0;
                     objectiveTransitionPhase = ObjectiveTransitionPhase.IDLE;
@@ -572,6 +604,8 @@ public class GamePanel extends JPanel implements Runnable {
         dialogueController.start(sequence);
         interactionMenuOpen = false;
         gameState = GameState.DIALOGUE;
+        autoCloseDialogueWhenFinished = false;
+        autoCloseDialogueTimer = 0.0;
         pendingDialogueEndAction = postDialogueAction != null && !postDialogueAction.isEmpty();
         if (pendingDialogueEndAction) {
             this.postDialogueAction = postDialogueAction;
@@ -609,35 +643,39 @@ public class GamePanel extends JPanel implements Runnable {
         if (worldName.contains("hometown")) {
             if (questManager.isStage(QuestManager.STAGE_GAME_START)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Prof Alfred", PLAYER_NAME, "Prof Alfred"},
+                        new String[]{"Professor Alfred", "Professor Alfred", "Professor Alfred", PLAYER_NAME},
                         new String[]{
-                                "Welcome, " + PLAYER_NAME + ". You are about to test DigiWorld, our new government-backed game. In this world you will fuse with Mecha Beasts, build bonds, and battle challengers.",
-                                "Thanks for the explanation, Professor, but may I know what is the reason the government funded to create this game?",
-                                "Go ask General Edrian over there. He can explain that part better."
+                                "Hello and welcome Mr. gaming prodigy and 10-time world champion " + PLAYER_NAME + " to the gaming lab where you will be testing our new revolutionary game \"DigiWorld\".",
+                                "Oh, where are my manners!? I’m Professor Alfred, and I’m in charge of developing this game.",
+                                "You will be transported into a world full of creatures called \"Mecha Beasts\", fuse with them, create a bond and battle together.",
+                                "Thanks for the explanation, Professor, but may I know what is the reason the government funded to create this game?"
                         }
                 );
                 startDialogue(script, "SET_OBJECTIVE:Talk to General Edrian|SET_FLAG:hasTalkedToProfessor|SET_NPC_STATE:profAlfredState:1");
             } else if (questManager.isStage(QuestManager.STAGE_TALKED_PROF)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Prof Alfred"},
-                        new String[]{"Have you spoken with General Edrian yet? He'll explain why we built this game."}
+                        new String[]{"Professor Alfred"},
+                        new String[]{"Please speak with General Edrian first."}
                 );
                 startDialogue(script, null);
             } else if (questManager.isStage(QuestManager.STAGE_TALKED_GEN)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Prof Alfred"},
-                        new String[]{"Excellent. Before transport, you need a G-Watch, a Mech-driver, and Beast Cards. Choose 3 out of these 10 Mecha Beasts."}
+                        new String[]{"Professor Alfred", "Professor Alfred"},
+                        new String[]{
+                                "Excellent! Now before we transport you, you will need this G-Watch, Mech-driver and Beast-Cards.",
+                                "Choose 3 out of these 10 Mecha Beasts:"
+                        }
                 );
-                startDialogue(script, "OPEN_STARTER_SELECT|SET_NPC_STATE:profAlfredState:2|SET_OBJECTIVE:Choose 3 Mecha Beasts");
-            } else if (questManager.isStage(QuestManager.STAGE_RETURNED_PROF)) {
+                startDialogue(script, "WAIT_AND_OPEN_STARTER_SELECT|SET_NPC_STATE:profAlfredState:2");
+            } else if (questManager.isStage(QuestManager.STAGE_SELECTED_STARTERS)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Prof Alfred"},
-                        new String[]{"Choose your 3 Mecha Beasts, " + PLAYER_NAME + "."}
+                        new String[]{"Professor Alfred"},
+                        new String[]{"The teleport door is ready. Step inside to enter DigiWorld."}
                 );
-                startDialogue(script, "OPEN_STARTER_SELECT");
+                startDialogue(script, null);
             } else if (questManager.isStage(QuestManager.STAGE_DEFEATED_ALDRICH)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{PLAYER_NAME, "Prof Alfred", PLAYER_NAME, "Prof Alfred"},
+                        new String[]{PLAYER_NAME, "Professor Alfred", PLAYER_NAME, "Professor Alfred"},
                         new String[]{
                                 "Professor! I'm back! Stage one is complete!",
                                 "Excellent work! Stage one is complete. And no bugs either. You handled yourself well, " + PLAYER_NAME + "!",
@@ -650,13 +688,13 @@ public class GamePanel extends JPanel implements Runnable {
         } else if (worldName.contains("alpha")) {
             if (questManager.isStage(QuestManager.STAGE_TALKED_CHIEF_REI)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Prof Alfred"},
+                        new String[]{"Professor Alfred"},
                         new String[]{"Use your G-Watch to locate Wild Vineratops. Defeat it, then proceed to the heart of the Mystic Forest."}
                 );
                 startDialogue(script, null);
             } else {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Prof Alfred"},
+                        new String[]{"Professor Alfred"},
                         new String[]{"Welcome to the beta test. Follow your G-Watch route to the Alpha Beast. You may feel pain in DigiWorld, but you will not die."}
                 );
                 startDialogue(script, null);
@@ -674,9 +712,13 @@ public class GamePanel extends JPanel implements Runnable {
             }
             if (genEdState == 0 && questManager.isStage(QuestManager.STAGE_TALKED_PROF)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"General Edrian", PLAYER_NAME},
+                        new String[]{"General Edrian", "General Edrian", "General Edrian", "General Edrian", "General Edrian", PLAYER_NAME},
                         new String[]{
-                                "The government funded DigiWorld to combine strategic gameplay with real physical movement. We want players to think and act like real field commanders.",
+                                "I shall be the one to answer that question player, I was actually intrigued by gaming.",
+                                "Seeing players think like they’re chess masters or generals and coordinate their upper body in tapping their devices to win, it gave me an idea.",
+                                "What if we create a game where you become the character and fight but in a digital world?",
+                                "This way gamers could play digital games while still being physically active, and they will be able to experience the feeling of being their character.",
+                                "This could create a new legacy for \"Gamers\".",
                                 "That doesn't fully answer my question but oh well. Let's get this started."
                         }
                 );
@@ -692,35 +734,36 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void handleChiefReiDialogue(Npc npc) {
-        if (!questManager.isStage(QuestManager.STAGE_REACHED_ALPHA_VILLAGE)) {
+        if (!questManager.isStage(QuestManager.STAGE_ENTERED_DIGIWORLD)) {
             showNpcSpeechBubble(npc, "You are not ready yet.", 2.0);
             npc.endInteraction();
             activeNpc = null;
             return;
         }
-        if (chiefReiState == 0) {
+        if (chiefReiState == 0 && questManager.isStage(QuestManager.STAGE_ENTERED_DIGIWORLD)) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{PLAYER_NAME, "Chief Rei", PLAYER_NAME, "Chief Rei", PLAYER_NAME},
+                    new String[]{"Chief Rei", PLAYER_NAME, "Chief Rei", PLAYER_NAME, "Chief Rei", PLAYER_NAME},
                     new String[]{
-                            "Hello? Anyone here?",
                             "Welcome, traveler. I am Chief Rei, guardian of this village. What is it you seek?",
                             "I was told there is an Alpha Beast here.",
-                            "That is true. Tell me, are you a challenger or just another treasure hunter?",
-                            "I am a challenger."
+                            "That is true. But tell me… are you a challenger, or just another treasure hunter?",
+                            "I… I guess I am a challenger.",
+                            "Then follow the Mystic Forest. The path will test you before you reach the Alpha. Be prepared.",
+                            "Thank you, Chief."
                     }
             );
-            startDialogue(script, "SET_OBJECTIVE:Go to Mystic Forest|SET_FLAG:hasTalkedToChiefRei|SET_NPC_STATE:chiefReiState:1");
+            startDialogue(script, "SET_OBJECTIVE:Locate the Wild Vineratops using your G-Watch|SET_FLAG:hasTalkedToChiefRei|SET_NPC_STATE:chiefReiState:1");
         } else {
             DialogueSequence script = DialogueFactory.createSequence(
                     new String[]{"Chief Rei"},
-                    new String[]{"Follow the Mystic Forest path. It will test you before you reach the Alpha."}
+                    new String[]{"Follow the Mystic Forest. Use your G-Watch and face the trial."}
             );
             startDialogue(script, null);
         }
     }
 
     private void handleAceJazzDialogue(Npc npc) {
-        if (!questManager.isStage(QuestManager.STAGE_ENTERED_BETA_CITY)) {
+        if (!questManager.isStage(QuestManager.STAGE_RETURNED_TO_LAB)) {
             showNpcSpeechBubble(npc, "You are not ready yet.", 2.0);
             npc.endInteraction();
             activeNpc = null;
@@ -729,7 +772,7 @@ public class GamePanel extends JPanel implements Runnable {
         if (aceJazzState == 0) {
             DialogueSequence script = DialogueFactory.createSequence(
                     new String[]{"Ace Jazz"},
-                    new String[]{"I am Ace Trainer Jazz. Battle me and win, only the strongest may pass. Beast Card On! Henshin!"}
+                    new String[]{"I am the Ace Trainer Jazz. Battle me and win for only the strongest may pass! BEAST CARD ON! HENSHIN!"}
             );
             startDialogue(script, "START_BOSS:ace_jazz|SET_OBJECTIVE:Defeat Ace Jazz");
         } else if (aceJazzState == 1) {
@@ -748,39 +791,48 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void handleTrialmasterDialogue(Npc npc) {
-        if (!questManager.isStage(QuestManager.STAGE_ENTERED_TOURNAMENT_HALL)) {
-            showNpcSpeechBubble(npc, "Only qualified challengers may enter.", 2.0);
+        if (!inventory.hasItem("Challenge Ticket")) {
+            showNpcSpeechBubble(npc, "Scram. Go get the Challenge Ticket from Ace Jazz first, then maybe you’ll be worthy enough to face me.", 2.8);
             npc.endInteraction();
             activeNpc = null;
             return;
         }
         if (trialmasterState == 0) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Trialmaster", PLAYER_NAME, "Trialmaster"},
+                    new String[]{"Trialmaster", PLAYER_NAME, "Trialmaster", PLAYER_NAME, "Trialmaster"},
                     new String[]{
                             "Welcome, challenger! I am Trialmaster! Will you defeat me to qualify for the tournament, or start all over again?",
-                            "Wait... Professor? Is that you? Are you also testing the game, or is this some NPC of you?",
-                            "I do not know who this Professor is."
+                            "Wait… Professor? Is that you? Are you also testing the game, or is this some NPC of you?",
+                            "IIII… d-d-don’t know who this Professor you’re talking about!",
+                            "Seriously!? You’re a bad liar.",
+                            "Enough talk! Prove your strength first, then I’ll answer. BEAST CARD ON! HENSHIN!"
                     }
             );
-            startDialogue(script, "SET_OBJECTIVE:Defeat Trialmaster");
+            startDialogue(script, "START_BOSS:trialmaster|SET_OBJECTIVE:Defeat Trialmaster");
         } else if (trialmasterState == 1) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Trialmaster"},
-                    new String[]{"You've beaten me... and qualified for the tournament! And yes, I'm the Professor. In this game, I'm \"Trialmaster.\" I transported in to personally monitor the test. I sense something bad is coming."}
+                    new String[]{"Trialmaster", "Trialmaster", "Trialmaster", "Trialmaster", PLAYER_NAME, "Trialmaster"},
+                    new String[]{
+                            "You’ve beaten me… and qualified for the tournament!",
+                            "And yes, I’m the Professor. In this game, I’m “Trialmaster.”",
+                            "I transported in to personally monitor the test and ensure no glitches slip through.",
+                            "I sense something bad is coming, and I had to see it for myself instead of just observing you.",
+                            "But why would something bad happen? You’re a genius, you’ve planned everything for this game!",
+                            "True, but there’s been tension between the staff and the General even before the beta started. Reasons I can’t share with you… for now. Let’s continue testing and see what unfolds."
+                    }
             );
-            startDialogue(script, "SET_FLAG:trialCompleted|SET_NPC_STATE:trialmasterState:2|SET_OBJECTIVE:Enter the Tournament");
+            startDialogue(script, "SET_FLAG:trialCompleted|SET_NPC_STATE:trialmasterState:2|SET_OBJECTIVE:Wait for the Tournament to Begin");
         } else {
             DialogueSequence script = DialogueFactory.createSequence(
                     new String[]{"Trialmaster"},
-                    new String[]{"The tournament begins soon. Stay alert."}
+                    new String[]{"Wait for the Tournament to Begin."}
             );
             startDialogue(script, null);
         }
     }
 
     private void handleAldrichDialogue(Npc npc) {
-        if (!questManager.atLeast(QuestManager.STAGE_COMPLETED_TUTORIAL)) {
+        if (!questManager.isStage(QuestManager.STAGE_COMPLETED_TUTORIAL)) {
             showNpcSpeechBubble(npc, "You are not ready yet.", 2.0);
             npc.endInteraction();
             activeNpc = null;
@@ -788,18 +840,18 @@ public class GamePanel extends JPanel implements Runnable {
         }
         if (aldrichState == 0) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Aldrich", PLAYER_NAME, "Aldrich"},
+                    new String[]{"Aldrich", "Player", "Aldrich"},
                     new String[]{
                             "Who dares step into my domain?",
                             "My name is " + PLAYER_NAME + ". I came to challenge you.",
-                            "Then face me. I am Aldrich, the Alpha. This is my partner, the Alpha Beast Gekuma. Beast Card On! Henshin!"
+                            "Then face me. I am Altair, the Alpha. And this is my partner, the Alpha Beast, Gekuma. BEAST CARD ON! HENSHIN!"
                     }
             );
             startDialogue(script, "START_BOSS:aldrich|SET_OBJECTIVE:Defeat Aldrich");
         } else {
             DialogueSequence script = DialogueFactory.createSequence(
                     new String[]{"Aldrich"},
-                    new String[]{"You defeated me. Take your victory and leave with your pride intact."}
+                    new String[]{"Come back when your bond with your beasts is stronger, fool."}
             );
             startDialogue(script, null);
         }
@@ -893,30 +945,53 @@ public class GamePanel extends JPanel implements Runnable {
                         case "aldrichState" -> aldrichState = newState;
                     }
                 }
-            } else if (action.startsWith("OPEN_STARTER_SELECT")) {
-                if (!questManager.isStage(QuestManager.STAGE_TALKED_GEN) && !questManager.isStage(QuestManager.STAGE_RETURNED_PROF)) {
+            } else if (action.startsWith("WAIT_AND_OPEN_STARTER_SELECT")) {
+                if (!questManager.isStage(QuestManager.STAGE_TALKED_GEN) || starterSelectionDone) {
                     interactionMessage = "You are not ready yet.";
                     continue;
                 }
-                questManager.setQuestStage(QuestManager.STAGE_RETURNED_PROF);
+                movementLocked = true;
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
                 gameState = GameState.STARTER_SELECT;
-                interactionMessage = "Prof Alfred: Choose your 3 starter beasts.";
+                movementLocked = false;
+                interactionMessage = "Professor Alfred: Choose 3 out of 10 Mecha Beasts.";
             } else if (action.startsWith("START_BOSS:")) {
                 String bossKey = action.substring("START_BOSS:".length());
                 switch (bossKey) {
                     case "ace_jazz" -> {
                         aceJazzState = 1;
-                        startBossBattle(worlds[worldIndex], "Ace Jazz");
+                        startBossBattle(worlds[worldIndex], "Pirrot");
                     }
                     case "aldrich" -> {
                         aldrichState = 1;
                         startBossBattle(worlds[worldIndex], "Gekuma");
                     }
-                    case "glitch" -> startBossBattle(worlds[worldIndex], "Woltrix");
+                    case "trialmaster" -> startBossBattle(worlds[worldIndex], "Voltchu");
                 }
             } else if (action.startsWith("GIVE_ITEM:")) {
                 String item = action.substring("GIVE_ITEM:".length());
                 interactionMessage = "Received: " + item + "!";
+                if ("challenge_ticket".equalsIgnoreCase(item)) {
+                    inventory.addItem("Challenge Ticket");
+                }
+            } else if (action.equals("TELEPORT_TO_BETA")) {
+                beginBetaCityPreparationTransition();
+            } else if (action.equals("TELEPORT_TO_LAB")) {
+                movementLocked = true;
+                teleportWithFade(0);
+            } else if (action.equals("MARK_LAB_RETURN_DONE")) {
+                labReturnDialogueDone = true;
+            } else if (action.equals("TELEPORT_TO_LAB_STAGE1")) {
+                pendingStage1ReturnCutscene = true;
+                movementLocked = true;
+                teleportWithFade(0);
+            } else if (action.equals("STAGE2_TRANSPORT_TO_BETA")) {
+                pendingBetaIntroDialogue = true;
+                beginBetaCityPreparationTransition();
             }
         }
 
@@ -933,6 +1008,14 @@ public class GamePanel extends JPanel implements Runnable {
             return;
         }
         dialogueController.update(deltaSeconds);
+
+        if (autoCloseDialogueWhenFinished && dialogueController.isLineFinished()) {
+            autoCloseDialogueTimer = Math.max(0.0, autoCloseDialogueTimer - deltaSeconds);
+            if (autoCloseDialogueTimer <= 0.0) {
+                endDialogue(false);
+                return;
+            }
+        }
 
         if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE) || input.consumeJustPressed(KeyEvent.VK_E)) {
             if (dialogueController.advance()) {
@@ -954,6 +1037,9 @@ public class GamePanel extends JPanel implements Runnable {
         activeNpc = null;
         if (gameState == GameState.DIALOGUE) {
             gameState = GameState.EXPLORATION;
+        }
+        if (!teleportInProgress) {
+            movementLocked = false;
         }
     }
 
@@ -977,18 +1063,7 @@ public class GamePanel extends JPanel implements Runnable {
 
         if (input.consumeJustPressed(KeyEvent.VK_1)) {
             if (isProfessorAlfred(activeNpc, current)) {
-                int targetWorld;
-                if ("Hometown".equalsIgnoreCase(current.getName()) && questManager.atLeast(QuestManager.STAGE_RETURNED_TO_LAB)) {
-                    targetWorld = 2;
-                } else {
-                    targetWorld = "Hometown".equalsIgnoreCase(current.getName()) ? 1 : 0;
-                }
-                if (targetWorld == 1 && !hasRequiredStarterLoadout()) {
-                    interactionMessage = "You are not ready yet. Complete your equipment first.";
-                    return;
-                }
-                interactionMessage = "Teleported to " + worlds[targetWorld].getName();
-                teleportWithFade(targetWorld);
+                interactionMessage = "Use the teleport door in the lab to enter DigiWorld.";
             } else if (activeNpc != null && hasDialogue(activeNpc)) {
                 showNpcDialogue(activeNpc, current);
             }
@@ -1018,11 +1093,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     private void handleStarterSelectionInput() {
         if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
-            gameState = GameState.EXPLORATION;
-            if (activeNpc != null) {
-                activeNpc.endInteraction();
-            }
-            activeNpc = null;
+            interactionMessage = "Select exactly 3 Mecha Beasts to continue.";
             return;
         }
         if (input.consumeJustPressed(KeyEvent.VK_LEFT) || input.consumeJustPressed(KeyEvent.VK_A)) {
@@ -1081,16 +1152,45 @@ public class GamePanel extends JPanel implements Runnable {
             hasMechDriver = true;
             beastCards = Math.max(beastCards, 5);
             questManager.setQuestStage(QuestManager.STAGE_SELECTED_STARTERS);
-            setObjective("Talk to Chief Rei");
+            setObjective("Go to the teleport door");
             selectedStarterIndices.clear();
-            interactionMessage = "3 starters chosen. Teleporting to Alpha Village.";
-            teleportWithFade(1);
-            gameState = GameState.EXPLORATION;
-            if (activeNpc != null) {
-                activeNpc.endInteraction();
-            }
-            activeNpc = null;
+            interactionMessage = "G-Watch, Mech-driver, Beast-Cards, and selected Mecha Beasts received.";
+            movementLocked = false;
+            startPostStarterSelectionDialogue();
         }
+    }
+
+    private void startPostStarterSelectionDialogue() {
+        Npc professor = findNpcByName(worlds[worldIndex], "Professor Alfred");
+        if (professor != null) {
+            activeNpc = professor;
+            activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
+        }
+        DialogueSequence script = DialogueFactory.createSequence(
+                new String[]{"Professor Alfred", "Professor Alfred", "Professor Alfred", "Professor Alfred", PLAYER_NAME, "Professor Alfred", PLAYER_NAME},
+                new String[]{
+                        "Welcome to the beta test. Your first mission is to reach Alpha Village and challenge the Alpha Beast.",
+                        "Your G Watch has the map, so just follow the route.",
+                        "Since this is still in beta, you might encounter bugs. Report them if you do.",
+                        "One more thing… you will feel pain, just like in real life. But remember, you will not die.",
+                        "Wait… what? Pain? You didn’t say anything about that!",
+                        "Good luck. The future of gaming and your legacy are in your hands.",
+                        "Did he just cut me off? Ugh, fine. No turning back now."
+                }
+        );
+        startDialogue(script, "SET_OBJECTIVE:Enter DigiWorld");
+    }
+
+    private Npc findNpcByName(World world, String name) {
+        if (world == null || name == null || name.isBlank()) {
+            return null;
+        }
+        for (Npc npc : world.getNpcs()) {
+            if (npc != null && name.equalsIgnoreCase(npc.getName())) {
+                return npc;
+            }
+        }
+        return null;
     }
 
     private void handleEnemySelectionInput() {
@@ -1180,14 +1280,19 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void teleportWithFade(int targetWorldIndex) {
+        if (teleportInProgress) {
+            return;
+        }
         if (!canEnterWorld(targetWorldIndex)) {
             interactionMessage = "You are not ready yet.";
             return;
         }
+        teleportInProgress = true;
         saveProgress();
         movementLocked = true;
         fadeTarget = 1.0;
         fadeAlpha = Math.max(fadeAlpha, 0.01);
+        soundManager.playTeleportSound();
         new Thread(() -> {
             try {
                 Thread.sleep(600);
@@ -1198,15 +1303,19 @@ public class GamePanel extends JPanel implements Runnable {
                 worldIndex = targetWorldIndex;
                 if (worldIndex == 1 && questManager.isStage(QuestManager.STAGE_SELECTED_STARTERS)) {
                     questManager.setQuestStage(QuestManager.STAGE_ENTERED_DIGIWORLD);
-                    questManager.setQuestStage(QuestManager.STAGE_REACHED_ALPHA_VILLAGE);
                     hiddenVineratopsTargetActive = false;
                     hiddenVineratopsEncounterTriggered = false;
-                } else if (worldIndex == 2 && questManager.atLeast(QuestManager.STAGE_RETURNED_TO_LAB)) {
-                    questManager.setQuestStage(QuestManager.STAGE_ENTERED_BETA_CITY);
+                } else if (worldIndex == 2) {
+                    if (pendingBetaIntroDialogue) {
+                        questManager.setQuestStage(QuestManager.STAGE_RETURNED_TO_LAB); // stage 8 runtime
+                        startBetaCityIntroDialogue();
+                    }
                 }
                 World world = worlds[worldIndex];
                 if (worldIndex == 1) {
                     rebuildValidEncounterBushes(world);
+                } else if (worldIndex == 0 && pendingStage1ReturnCutscene) {
+                    startStage1ReturnAndStage2Intro();
                 }
                 player.teleportToTile(world.getSpawnTileX(), world.getSpawnTileY());
                 previousTileX = (int) player.getX() / TILE_SIZE;
@@ -1215,6 +1324,7 @@ public class GamePanel extends JPanel implements Runnable {
                 camera.follow(player, world, LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE_SIZE);
                 soundManager.playWorldMusic(world.getName());
                 fadeTarget = 0.0;
+                teleportInProgress = false;
             }
         }).start();
     }
@@ -1227,12 +1337,195 @@ public class GamePanel extends JPanel implements Runnable {
             return questManager.isStage(QuestManager.STAGE_SELECTED_STARTERS) && hasRequiredStarterLoadout();
         }
         if (targetWorldIndex == 2) {
-            return questManager.atLeast(QuestManager.STAGE_DEFEATED_ALDRICH);
-        }
-        if (targetWorldIndex >= 3) {
-            return questManager.atLeast(QuestManager.STAGE_TOURNAMENT_STARTED);
+            return pendingBetaIntroDialogue || questManager.atLeast(QuestManager.STAGE_RETURNED_TO_LAB);
         }
         return false;
+    }
+
+    private void updateHometownTeleportDoor(World current) {
+        if (!"Hometown".equalsIgnoreCase(current.getName())) {
+            teleportDoorProximity = 0.0;
+            teleportDoorLockedMessageShown = false;
+            return;
+        }
+        int centerX = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE + TILE_SIZE / 2;
+        int centerY = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE + TILE_SIZE;
+        double dx = player.getCenterX() - centerX;
+        double dy = player.getCenterY() - centerY;
+        double distance = Math.sqrt(dx * dx + dy * dy);
+        teleportDoorProximity = Math.max(0.0, Math.min(1.0, 1.0 - (distance / (TILE_SIZE * 4.0))));
+        if (!isInsideTeleportDoorTrigger()) {
+            teleportDoorLockedMessageShown = false;
+            return;
+        }
+        if (!questManager.atLeast(QuestManager.STAGE_SELECTED_STARTERS)) {
+            if (!teleportDoorLockedMessageShown) {
+                interactionMessage = "Teleport Door is locked. Complete Professor Alfred's setup first.";
+                teleportDoorLockedMessageShown = true;
+            }
+            player.teleportToTile(HOMETOWN_TELEPORT_DOOR_TILE_X + 1, HOMETOWN_TELEPORT_DOOR_TILE_Y + 2);
+            return;
+        }
+        if (!teleportInProgress && gameState == GameState.EXPLORATION) {
+            teleportWithFade(1);
+        }
+    }
+
+    private void maybeStartAlphaArrivalDialogue(World current) {
+        if (!"World 2 - Alpha Village".equalsIgnoreCase(current.getName())) {
+            return;
+        }
+        if (alphaArrivalDialogueDone || !questManager.isStage(QuestManager.STAGE_ENTERED_DIGIWORLD)) {
+            return;
+        }
+        if (gameState != GameState.EXPLORATION || teleportInProgress || bossArenaActive) {
+            return;
+        }
+        alphaArrivalDialogueDone = true;
+        movementLocked = true;
+        DialogueSequence script = DialogueFactory.createSequence(
+                new String[]{"Player"},
+                new String[]{"Hello? Anyone here?"}
+        );
+        startDialogue(script, "SET_OBJECTIVE:Find Chief Rei");
+        autoCloseDialogueWhenFinished = true;
+        autoCloseDialogueTimer = 0.8;
+    }
+
+    private void maybeStartLabReturnCutscene(World current) {
+        if (!"Hometown".equalsIgnoreCase(current.getName())) {
+            return;
+        }
+        if (!questManager.isStage(QuestManager.STAGE_DEFEATED_ALDRICH) || labReturnDialogueDone) {
+            return;
+        }
+        if (gameState != GameState.EXPLORATION || teleportInProgress || bossArenaActive) {
+            return;
+        }
+        Npc professor = findNpcByName(current, "Professor Alfred");
+        if (professor != null) {
+            activeNpc = professor;
+            activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
+        }
+        DialogueSequence script = DialogueFactory.createSequence(
+                new String[]{"Professor Alfred", "You", "Professor Alfred", "You"},
+                new String[]{
+                        "Excellent work. Stage one is complete. And no bugs either. You handled yourself well.",
+                        "Don’t act proud! You never told me the pain would feel real. I thought I was going to die!",
+                        "But you did not. That is the point. This game is meant to be lived, not just played. Now rest. Tomorrow, the next test awaits.",
+                        "Tch…"
+                }
+        );
+        startDialogue(script, "SET_OBJECTIVE:Talk to Chief Rei|MARK_LAB_RETURN_DONE");
+    }
+
+    private void startStage1ReturnAndStage2Intro() {
+        pendingStage1ReturnCutscene = false;
+        movementLocked = true;
+        DialogueSequence script = DialogueFactory.createSequence(
+                new String[]{"Professor Alfred", "Player", "Professor Alfred", "Player", "Professor Alfred", "Player", "Professor Alfred"},
+                new String[]{
+                        "Excellent work. Stage one is complete. And no bugs either. You handled yourself well.",
+                        "Don’t act proud! You never told me the pain would feel real. I thought I was going to die!",
+                        "But you did not. That is the point. This game is meant to be lived, not just played. Now rest. Tomorrow, the next test awaits.",
+                        "Tch…",
+                        "Welcome back, Player. We’re about to begin the full test. Are you ready?",
+                        "Yes… somewhat.",
+                        "Alright then, transport!"
+                }
+        );
+        startDialogue(script, "STAGE2_TRANSPORT_TO_BETA");
+    }
+
+    private void startBetaCityIntroDialogue() {
+        movementLocked = true;
+        DialogueSequence script = DialogueFactory.createSequence(
+                new String[]{"Professor Alfred", "Professor Alfred", "Player"},
+                new String[]{
+                        "You are now in Beta City! Your goal: defeat the Ace Trainer to earn a Challenge Ticket for the Tournament Trial.",
+                        "Head to the Tournament Hall to register. Good luck, and hopefully… everything goes smoothly.",
+                        "Alright! Let’s go!"
+                }
+        );
+        startDialogue(script, "SET_OBJECTIVE:Defeat Ace Trainer Jazz");
+        pendingBetaIntroDialogue = false;
+    }
+
+    private void updateAldrichProximityObjective(World current) {
+        if (!"World 2 - Alpha Village".equalsIgnoreCase(current.getName())) {
+            return;
+        }
+        if (!questManager.isStage(QuestManager.STAGE_COMPLETED_TUTORIAL) || aldrichObjectiveTriggered) {
+            return;
+        }
+        Npc aldrich = findNpcByName(current, "Aldrich");
+        if (aldrich == null) {
+            return;
+        }
+        int playerTileX = player.getCenterX() / TILE_SIZE;
+        int playerTileY = player.getCenterY() / TILE_SIZE;
+        int aldrichTileX = aldrich.getCenterX() / TILE_SIZE;
+        int aldrichTileY = aldrich.getCenterY() / TILE_SIZE;
+        int dx = Math.abs(playerTileX - aldrichTileX);
+        int dy = Math.abs(playerTileY - aldrichTileY);
+        if (Math.max(dx, dy) <= 5) {
+            setObjective("Defeat Aldrich");
+            aldrichObjectiveTriggered = true;
+        }
+    }
+
+    private boolean isInsideTeleportDoorTrigger() {
+        int doorX = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE;
+        int doorY = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE;
+        int triggerW = TILE_SIZE * 3;
+        int triggerH = TILE_SIZE * 2;
+        int px = player.getCenterX();
+        int py = player.getCenterY();
+        return px >= doorX && px <= doorX + triggerW && py >= doorY && py <= doorY + triggerH;
+    }
+
+    private void drawHometownTeleportDoorPlaceholder(Graphics2D g2d, World current) {
+        if (!"Hometown".equalsIgnoreCase(current.getName())) {
+            return;
+        }
+        int x = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE - camera.getX();
+        int y = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE - camera.getY();
+        int w = TILE_SIZE * 3;
+        int h = TILE_SIZE * 2;
+        g2d.setColor(new Color(28, 40, 70, 210));
+        g2d.fillRoundRect(x, y, w, h, 8, 8);
+        g2d.setColor(new Color(130, 210, 255));
+        g2d.drawRoundRect(x, y, w, h, 8, 8);
+        int opening = (int) Math.round((w - 12) * teleportDoorProximity);
+        int energyX = x + (w - opening) / 2;
+        g2d.setColor(new Color(85, 200, 255, 140));
+        g2d.fillRoundRect(energyX, y + 7, opening, h - 14, 6, 6);
+        g2d.setColor(new Color(225, 245, 255, 210));
+        g2d.drawString("Teleport Door", x - 4, y - 4);
+        // TODO(art): replace this placeholder with final glowing sci-fi animated door asset.
+    }
+
+    private void beginBetaCityPreparationTransition() {
+        if (teleportInProgress) {
+            return;
+        }
+        teleportInProgress = true;
+        movementLocked = true;
+        saveProgress();
+        fadeTarget = 1.0;
+        fadeAlpha = Math.max(fadeAlpha, 0.01);
+        soundManager.playTeleportSound();
+        new Thread(() -> {
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            synchronized (this) {
+                teleportInProgress = false;
+                teleportWithFade(2);
+            }
+        }).start();
     }
 
     private boolean hasRequiredStarterLoadout() {
@@ -1267,10 +1560,11 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private World[] createWorlds() {
-        return new World[]{
+        String aldrichBase = findAldrichSpriteBaseDir();
+        World[] built = new World[]{
                 new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{
                         new Npc(
-                                "Prof Alfred",
+                                "Professor Alfred",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(214, 93, 177),
@@ -1281,7 +1575,7 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/professor-alfred/profalfred-r.png"
                         ),
                         new Npc(
-                                "Gen Ed",
+                                "General Edrian",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(245, 132, 92),
@@ -1309,17 +1603,14 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(200, 80, 80),
-                                new int[][]{{25, 6}, {25, 6}, {25, 6}, {25, 6}},
-                                "res/characters/aldrich/aldrich-fw.png",
-                                "res/characters/aldrich/aldrich-b.png",
-                                "res/characters/aldrich/aldrich-l.png",
-                                "res/characters/aldrich/aldrich-r.png"
-                        ),
-                        new Npc("Prof Alfred", TILE_SIZE, TILE_SIZE, new Color(214, 93, 177), new int[][]{{22, 18}, {24, 18}, {24, 20}, {22, 20}},
-                                "res/characters/professor-alfred/profalfred-fw.png",
-                                "res/characters/professor-alfred/profalfred-b.png",
-                                "res/characters/professor-alfred/profalfred-l.png",
-                                "res/characters/professor-alfred/profalfred-r.png"
+                                new int[][]{{digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
+                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
+                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
+                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y}},
+                                aldrichBase + "/aldrich-fw.png",
+                                aldrichBase + "/aldrich-b.png",
+                                aldrichBase + "/aldrich-l.png",
+                                aldrichBase + "/aldrich-r.png"
                         )
                 }),
                 new World("World 3 - Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
@@ -1328,7 +1619,7 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(230, 160, 75),
-                                new int[][]{{28, 21}, {28, 21}, {28, 21}, {28, 21}},
+                                new int[][]{{33, 26}, {33, 26}, {33, 26}, {33, 26}},
                                 "res/characters/ace-jazz/acejazz-fw.png",
                                 "res/characters/ace-jazz/acejazz-b.png",
                                 "res/characters/ace-jazz/acejazz-l.png",
@@ -1339,34 +1630,40 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(180, 130, 214),
-                                new int[][]{{28, 8}, {28, 8}, {28, 8}, {28, 8}},
+                                new int[][]{{28, 12}, {28, 12}, {28, 12}, {28, 12}},
                                 "res/characters/trialmaster/trialmaster-fw.png",
                                 "res/characters/trialmaster/trialmaster-b.png",
                                 "res/characters/trialmaster/trialmaster-l.png",
                                 "res/characters/trialmaster/trialmaster-r.png"
-                        ),
-                        new Npc(
-                                "Boss Rhonn",
-                                TILE_SIZE,
-                                TILE_SIZE,
-                                new Color(200, 200, 100),
-                                new int[][]{{25, 20}, {25, 20}, {25, 20}, {25, 20}}
-                        )
-                }),
-                new World("World 4 - Collapse Zone", 60, 46, TILE_SIZE, 30, 23, new Npc[]{
-                        new Npc(
-                                "Glitch",
-                                TILE_SIZE,
-                                TILE_SIZE,
-                                new Color(128, 214, 104),
-                                new int[][]{{30, 23}, {30, 23}, {30, 23}, {30, 23}},
-                                "res/characters/glitch-ron/glitchron-fw.png",
-                                "res/characters/glitch-ron/glitchron-b.png",
-                                "res/characters/glitch-ron/glitchron-l.png",
-                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 })
         };
+        for (World world : built) {
+            WorldTileMapRegistry.apply(world);
+        }
+        return built;
+    }
+
+    private String findAldrichSpriteBaseDir() {
+        File root = new File("res/characters");
+        if (!root.exists() || !root.isDirectory()) {
+            return "res/characters/aldrich";
+        }
+        File[] dirs = root.listFiles(File::isDirectory);
+        if (dirs == null) {
+            return "res/characters/aldrich";
+        }
+        for (File dir : dirs) {
+            String lower = dir.getName().toLowerCase();
+            if (!lower.contains("aldrich")) {
+                continue;
+            }
+            File fw = new File(dir, "aldrich-fw.png");
+            if (fw.exists()) {
+                return dir.getPath().replace("\\", "/");
+            }
+        }
+        return "res/characters/aldrich";
     }
 
     @Override
@@ -1391,13 +1688,14 @@ public class GamePanel extends JPanel implements Runnable {
             player.render(scene, camera);
             renderParticles(scene, false);
             drawScanMarker(scene);
+            drawHometownTeleportDoorPlaceholder(scene, current);
             if (bossArenaActive) {
                 drawBossArena(scene, current);
             }
             drawNearbyNpcNametags(scene, current);
             drawHud(scene, current);
             drawNpcSpeechBubble(scene);
-            if (gameState == GameState.DIALOGUE && activeNpc != null) {
+            if (gameState == GameState.DIALOGUE) {
                 drawDialogueAboveNpc(scene);
             }
             if (interactionMenuOpen) {
@@ -1406,7 +1704,7 @@ public class GamePanel extends JPanel implements Runnable {
             if (gameState == GameState.INVENTORY) {
                 inventory.render(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
             } else if (gameState == GameState.STARTER_SELECT) {
-                drawRpgBeastSelection(scene, "Professor Alfred", "Choose your starter beast", starterChoices, starterSelectionIndex);
+                drawRpgBeastSelection(scene, "Professor Alfred", "Choose 3 out of 10 Mecha Beasts", starterChoices, starterSelectionIndex);
             } else if (gameState == GameState.ENEMY_SELECT) {
                 drawRpgBeastSelection(scene, "Wild Bush Encounter", "Choose which beast to fight", enemyChoices, enemySelectionIndex);
             }
@@ -1419,9 +1717,6 @@ public class GamePanel extends JPanel implements Runnable {
             drawZoomedDialogueScene(g2d);
         } else {
             g2d.drawImage(frameBuffer, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, null);
-            if ("World 4 - Collapse Zone".equalsIgnoreCase(current.getName()) && collapseStarted) {
-                drawCollapseEffects(g2d);
-            }
         }
         if (fadeAlpha > 0.01) {
             g2d.setColor(new Color(0, 0, 0, (int) (255 * fadeAlpha)));
@@ -1634,7 +1929,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     private boolean canTeleportNext(Npc npc, World world) {
         return npc != null
-                && "Prof Alfred".equalsIgnoreCase(npc.getName());
+                && "Professor Alfred".equalsIgnoreCase(npc.getName());
     }
 
     private boolean isProfessorAlfred(Npc npc, World world) {
@@ -1642,13 +1937,13 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private boolean hasDialogue(Npc npc) {
-        return npc != null && "Gen Ed".equalsIgnoreCase(npc.getName());
+        return npc != null && "General Edrian".equalsIgnoreCase(npc.getName());
     }
 
     private boolean isGenEd(Npc npc, World world) {
         return npc != null
                 && "Hometown".equalsIgnoreCase(world.getName())
-                && "Gen Ed".equalsIgnoreCase(npc.getName());
+                && "General Edrian".equalsIgnoreCase(npc.getName());
     }
 
     private boolean hasSeenDialogue(Npc npc) {
@@ -1659,8 +1954,8 @@ public class GamePanel extends JPanel implements Runnable {
         if (npc == null) {
             return;
         }
-        if ("Gen Ed".equalsIgnoreCase(npc.getName()) && "Hometown".equalsIgnoreCase(world.getName())) {
-            interactionMessage = "Gen Ed: Gaming can build strategy and discipline. DigiWorld was made so gamers can think and move like true commanders.";
+        if ("General Edrian".equalsIgnoreCase(npc.getName()) && "Hometown".equalsIgnoreCase(world.getName())) {
+            interactionMessage = "General Edrian: Gaming can build strategy and discipline. DigiWorld was made so gamers can think and move like true commanders.";
             seenNpcDialogues.add(npc.getName());
             return;
         }
@@ -1676,28 +1971,6 @@ public class GamePanel extends JPanel implements Runnable {
         int playerTileX = (int) player.getX() / TILE_SIZE;
         int playerTileY = (int) player.getY() / TILE_SIZE;
 
-        if ("World 2 - Alpha Village".equalsIgnoreCase(name) && !alphaBossDefeated) {
-            for (Npc npc : current.getNpcs()) {
-                if (npc.getName().toLowerCase().contains("aldrich")) {
-                    int bossTileX = (int) npc.getCenterX() / TILE_SIZE;
-                    int bossTileY = (int) npc.getCenterY() / TILE_SIZE;
-                    if (Math.abs(playerTileX - bossTileX) <= 3 && Math.abs(playerTileY - bossTileY) <= 3) {
-                        startBossBattle(current, "Gekuma");
-                    }
-                    break;
-                }
-            }
-        }
-
-        if ("World 3 - Beta City".equalsIgnoreCase(name)) {
-            int tournamentHallX = current.getWidth() / 2;
-            int tournamentHallY = 8;
-            if (Math.abs(playerTileX - tournamentHallX) <= 3 && Math.abs(playerTileY - tournamentHallY) <= 3) {
-                if (!trialCompleted) {
-                    triggerBetaCityTournament(current);
-                }
-            }
-        }
     }
 
     private void startBossBattle(World current, String bossName) {
@@ -1723,10 +1996,10 @@ public class GamePanel extends JPanel implements Runnable {
             return questManager.atLeast(QuestManager.STAGE_COMPLETED_TUTORIAL);
         }
         if ("ace jazz".equals(normalized) || "pirrot".equals(normalized)) {
-            return questManager.isStage(QuestManager.STAGE_ENTERED_BETA_CITY);
+            return questManager.isStage(QuestManager.STAGE_RETURNED_TO_LAB);
         }
-        if ("woltrix".equals(normalized) || "glitch".equals(normalized)) {
-            return questManager.atLeast(QuestManager.STAGE_REACHED_GLITCH_AREA);
+        if ("voltchu".equals(normalized) || "trialmaster".equals(normalized)) {
+            return questManager.isStage(QuestManager.STAGE_ENTERED_BETA_CITY) && inventory.hasItem("Challenge Ticket");
         }
         return true;
     }
@@ -1738,23 +2011,49 @@ public class GamePanel extends JPanel implements Runnable {
 
         if (currentBossWorldIndex == 1) {
             alphaBossDefeated = true;
-            betaCityUnlocked = true;
             questManager.setQuestStage(QuestManager.STAGE_DEFEATED_ALDRICH);
-            interactionMessage = "Alpha Beast defeated! Teleporting to Beta City.";
-            teleportWithFade(2);
+            interactionMessage = "Teleportation instability detected...";
+            DialogueSequence script = DialogueFactory.createSequence(
+                    new String[]{"Aldrich"},
+                    new String[]{
+                            "What a strange challenger…"
+                    }
+            );
+            startDialogue(script, "TELEPORT_TO_LAB_STAGE1");
         } else if (currentBossWorldIndex == 2) {
             trialCompleted = true;
-            if ("Boss battle: Ace Jazz".equalsIgnoreCase(interactionMessage) || aceJazzState >= 1) {
-                questManager.setQuestStage(QuestManager.STAGE_DEFEATED_ACE_JAZZ);
+            if ("Boss battle: Pirrot".equalsIgnoreCase(interactionMessage) || aceJazzState >= 1) {
+                questManager.setQuestStage(QuestManager.STAGE_ENTERED_BETA_CITY); // stage 9
+                inventory.addItem("Challenge Ticket");
+                DialogueSequence script = DialogueFactory.createSequence(
+                        new String[]{"Ace Jazz"},
+                        new String[]{"You’ve surpassed us all. Take this Challenge Ticket, you’ve earned it. With it, you’re worthy of the Tournament Trial."}
+                );
+                startDialogue(script, "SET_OBJECTIVE:Go to the Tournament Hall");
             } else {
-                questManager.setQuestStage(QuestManager.STAGE_DEFEATED_TRIALMASTER);
+                questManager.setQuestStage(QuestManager.STAGE_DEFEATED_ACE_JAZZ); // stage 10
+                setObjective("Wait for the Tournament to Begin");
             }
-            interactionMessage = "Trialmaster defeated! The Collapse begins...";
         }
 
         bossArenaActive = false;
         currentBossWorldIndex = -1;
         saveProgress();
+    }
+
+    private void handleBossDefeat() {
+        if (currentBossWorldIndex == 1 && questManager.isStage(QuestManager.STAGE_COMPLETED_TUTORIAL)) {
+            interactionMessage = "Come back when your bond with your beasts is stronger, fool.";
+            String[] equipped = inventory.getEquippedBeastNames();
+            if (equipped != null && equipped.length >= 3) {
+                battleSystem.setPlayerParty(equipped);
+                battleSystem.setStarterBeast(equipped[0]);
+            }
+            player.teleportToTile(25, 14);
+            setObjective("Defeat Aldrich");
+        }
+        bossArenaActive = false;
+        currentBossWorldIndex = -1;
     }
 
     private void triggerBetaCityTournament(World current) {
@@ -1946,13 +2245,11 @@ public class GamePanel extends JPanel implements Runnable {
         if (!"World 2 - Alpha Village".equalsIgnoreCase(current.getName())) {
             return null;
         }
+        rebuildValidEncounterBushes(current);
         if (validEncounterBushes.isEmpty()) {
-            rebuildValidEncounterBushes(current);
+            return new BushTile(digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_X, digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_Y);
         }
-        if (validEncounterBushes.isEmpty()) {
-            return null;
-        }
-        return validEncounterBushes.get(random.nextInt(validEncounterBushes.size()));
+        return validEncounterBushes.get(0);
     }
 
     private void rebuildValidEncounterBushes(World current) {
@@ -1960,132 +2257,8 @@ public class GamePanel extends JPanel implements Runnable {
         if (!"World 2 - Alpha Village".equalsIgnoreCase(current.getName())) {
             return;
         }
-        int minX = 6;
-        int maxX = current.getWidth() - 7;
-        int minY = 6;
-        int maxY = current.getHeight() - 7;
-        for (int y = minY; y <= maxY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-                if (!isValidSingleEncounterBush(current, x, y)) {
-                    continue;
-                }
-                boolean tooCloseToExisting = false;
-                for (BushTile existing : validEncounterBushes) {
-                    int dx = existing.x - x;
-                    int dy = existing.y - y;
-                    if (dx * dx + dy * dy < 36) {
-                        tooCloseToExisting = true;
-                        break;
-                    }
-                }
-                if (!tooCloseToExisting) {
-                    validEncounterBushes.add(new BushTile(x, y));
-                }
-            }
-        }
-        if (validEncounterBushes.isEmpty()) {
-            ensureSingleEncounterBushLayout(current);
-            for (int y = minY; y <= maxY; y++) {
-                for (int x = minX; x <= maxX; x++) {
-                    if (isValidSingleEncounterBush(current, x, y)) {
-                        boolean tooCloseToExisting = false;
-                        for (BushTile existing : validEncounterBushes) {
-                            int dx = existing.x - x;
-                            int dy = existing.y - y;
-                            if (dx * dx + dy * dy < 36) {
-                                tooCloseToExisting = true;
-                                break;
-                            }
-                        }
-                        if (!tooCloseToExisting) {
-                            validEncounterBushes.add(new BushTile(x, y));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private void ensureSingleEncounterBushLayout(World world) {
-        int minX = 6;
-        int maxX = world.getWidth() - 7;
-        int minY = 6;
-        int maxY = world.getHeight() - 7;
-        int targetBushCount = 9;
-        int placed = 0;
-
-        for (int attempt = 0; attempt < 1200 && placed < targetBushCount; attempt++) {
-            int x = minX + random.nextInt(Math.max(1, maxX - minX + 1));
-            int y = minY + random.nextInt(Math.max(1, maxY - minY + 1));
-            TileType center = world.getTile(x, y);
-            if (center == TileType.WATER || center.isBlocked()) {
-                continue;
-            }
-            if (center == TileType.GRASS_BUSH) {
-                continue;
-            }
-            boolean openRing = true;
-            for (int oy = -1; oy <= 1 && openRing; oy++) {
-                for (int ox = -1; ox <= 1; ox++) {
-                    TileType t = world.getTile(x + ox, y + oy);
-                    if (t.isBlocked() || t == TileType.WATER) {
-                        openRing = false;
-                        break;
-                    }
-                }
-            }
-            if (!openRing) {
-                continue;
-            }
-            boolean closeToExisting = false;
-            for (BushTile existing : validEncounterBushes) {
-                int dx = existing.x - x;
-                int dy = existing.y - y;
-                if (dx * dx + dy * dy < 64) {
-                    closeToExisting = true;
-                    break;
-                }
-            }
-            if (closeToExisting) {
-                continue;
-            }
-
-            for (int oy = -3; oy <= 3; oy++) {
-                for (int ox = -3; ox <= 3; ox++) {
-                    if (world.getTile(x + ox, y + oy) == TileType.GRASS_BUSH) {
-                        world.setTile(x + ox, y + oy, TileType.GRASS2);
-                    }
-                }
-            }
-            world.setTile(x, y, TileType.GRASS_BUSH);
-            validEncounterBushes.add(new BushTile(x, y));
-            placed++;
-        }
-    }
-
-    private boolean isValidSingleEncounterBush(World world, int x, int y) {
-        if (world.getTile(x, y) != TileType.GRASS_BUSH) {
-            return false;
-        }
-        for (int oy = -3; oy <= 3; oy++) {
-            for (int ox = -3; ox <= 3; ox++) {
-                if (ox == 0 && oy == 0) {
-                    continue;
-                }
-                if (world.getTile(x + ox, y + oy) == TileType.GRASS_BUSH) {
-                    return false;
-                }
-            }
-        }
-        for (int oy = -1; oy <= 1; oy++) {
-            for (int ox = -1; ox <= 1; ox++) {
-                TileType t = world.getTile(x + ox, y + oy);
-                if (t.isBlocked() || t == TileType.WATER || t == TileType.GRASS_BUSH) {
-                    return false;
-                }
-            }
-        }
-        return true;
+        WorldTileMapRegistry.apply(current);
+        validEncounterBushes.add(new BushTile(digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_X, digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_Y));
     }
 
     private void updateScanMarker(double deltaSeconds) {
