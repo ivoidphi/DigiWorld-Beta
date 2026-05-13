@@ -1,0 +1,18 @@
+package digiworld.battle;
+
+import digiworld.app.*;
+import digiworld.battle.*;
+import digiworld.core.*;
+import digiworld.dialogue.*;
+import digiworld.ui.*;
+
+public enum MoveEffect {
+    NONE,
+    HEAL_SELF_PERCENT_MAX_HP,
+    LOWER_TARGET_ATTACK_PERCENT,
+    LOWER_TARGET_DEFENSE_PERCENT,
+    AFTERSHOCK_PERCENT_TARGET_MAX_HP,
+    EXTRA_HITS,
+    EXTRA_HITS_CHANCE,
+    HIGH_CRIT
+}

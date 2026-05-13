@@ -1,0 +1,12 @@
+package digiworld.battle;
+
+import digiworld.app.*;
+import digiworld.battle.*;
+import digiworld.core.*;
+import digiworld.dialogue.*;
+import digiworld.ui.*;
+
+public enum BattleType {
+    WILD,
+    PLAYER
+}
