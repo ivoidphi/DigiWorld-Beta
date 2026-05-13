@@ -30,10 +30,11 @@ public class GamePanel extends JPanel implements Runnable {
     private final Camera camera;
     private final World[] worlds;
     private final BattleSystem battleSystem;
-    private final SoundManager soundManager; // Handles background world music and battle music.
+    private SoundManager soundManager = new SoundManager();
     private final GameUiRenderer uiRenderer;
     private final Inventory inventory;
     private final Random random;
+
     private int worldIndex;
     private final Player player;
 
@@ -121,12 +122,13 @@ public class GamePanel extends JPanel implements Runnable {
         camera = new Camera();
         worlds = createWorlds();
         battleSystem = new BattleSystem();
-        soundManager = new SoundManager(); // Initialize music manager before rendering begins.
+
         battleSystem.setSoundManager(soundManager); // Wire battle sound effects into the battle system.
         soundManager.playWorldMusic(worlds[0].getName()); // Start the first world's background music.
         uiRenderer = new GameUiRenderer(LOGICAL_WIDTH, LOGICAL_HEIGHT, PLAYER_NAME, battleSystem);
         inventory = new Inventory();
         random = new Random();
+
         worldIndex = 0;
         player = new Player(worlds[0].getSpawnTileX() * TILE_SIZE, worlds[0].getSpawnTileY() * TILE_SIZE, TILE_SIZE,
                 input, TILE_SIZE);
@@ -196,6 +198,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     public void startGame() {
         requestFocusInWindow();
+        soundManager.playWorldMusic(worlds[worldIndex].getName());
         gameThread = new Thread(this, "game-loop");
         gameThread.start();
     }
@@ -482,7 +485,7 @@ public class GamePanel extends JPanel implements Runnable {
                         new String[] {
                                 "Excellent! Now before we transport you, you will need this G-Watch, Mech-driver and Beast-Cards. Choose 3 out of these 10 Mecha Beasts." });
                 startDialogue(script,
-                        "OPEN_STARTER_SELECT|SET_NPC_STATE:profAlfredState:2|SET_OBJECTIVE:Choose 3 Mecha Beasts");
+                        "OPEN_STARTER_SELECT|SET_FLAG:starterSelectionDone|SET_NPC_STATE:profAlfredState:2|SET_OBJECTIVE:Choose 3 Mecha Beasts");
             } else if (profAlfredState == 2 && !starterSelectionDone) {
                 DialogueSequence script = DialogueFactory.createSequence(
                         new String[] { "Prof Alfred" },
@@ -976,6 +979,7 @@ public class GamePanel extends JPanel implements Runnable {
                 camera.follow(player, world, LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE_SIZE);
                 soundManager.playWorldMusic(world.getName()); // Change background music when the player changes world.
                 fadeTarget = 0.0;
+                soundManager.playWorldMusic(worlds[worldIndex].getName());
             }
         }).start();
     }
@@ -1020,11 +1024,7 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(200, 80, 80),
-                                new int[][] { { 25, 6 }, { 25, 6 }, { 25, 6 }, { 25, 6 } },
-                                "res/characters/aldrich/aldrich-fw.png",
-                                "res/characters/aldrich/aldrich-b.png",
-                                "res/characters/aldrich/aldrich-l.png",
-                                "res/characters/aldrich/aldrich-r.png"),
+                                new int[][] { { 25, 6 }, { 25, 6 }, { 25, 6 }, { 25, 6 } }),
                         new Npc("Prof Alfred", TILE_SIZE, TILE_SIZE, new Color(214, 93, 177),
                                 new int[][] { { 22, 18 }, { 24, 18 }, { 24, 20 }, { 22, 20 } },
                                 "res/characters/professor-alfred/profalfred-fw.png",
@@ -1038,21 +1038,13 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(230, 160, 75),
-                                new int[][] { { 28, 21 }, { 28, 21 }, { 28, 21 }, { 28, 21 } },
-                                "res/characters/ace-jazz/acejazz-fw.png",
-                                "res/characters/ace-jazz/acejazz-b.png",
-                                "res/characters/ace-jazz/acejazz-l.png",
-                                "res/characters/ace-jazz/acejazz-r.png"),
+                                new int[][] { { 28, 21 }, { 28, 21 }, { 28, 21 }, { 28, 21 } }),
                         new Npc(
                                 "Trialmaster",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(180, 130, 214),
-                                new int[][] { { 28, 8 }, { 28, 8 }, { 28, 8 }, { 28, 8 } },
-                                "res/characters/trialmaster/trialmaster-fw.png",
-                                "res/characters/trialmaster/trialmaster-b.png",
-                                "res/characters/trialmaster/trialmaster-l.png",
-                                "res/characters/trialmaster/trialmaster-r.png"),
+                                new int[][] { { 28, 8 }, { 28, 8 }, { 28, 8 }, { 28, 8 } }),
                         new Npc(
                                 "Boss Rhonn",
                                 TILE_SIZE,
@@ -1066,11 +1058,7 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(128, 214, 104),
-                                new int[][] { { 30, 23 }, { 30, 23 }, { 30, 23 }, { 30, 23 } },
-                                "res/characters/glitch-ron/glitchron-fw.png",
-                                "res/characters/glitch-ron/glitchron-b.png",
-                                "res/characters/glitch-ron/glitchron-l.png",
-                                "res/characters/glitch-ron/glitchron-r.png")
+                                new int[][] { { 30, 23 }, { 30, 23 }, { 30, 23 }, { 30, 23 } })
                 })
         };
     }
@@ -1488,16 +1476,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private String pickRandomWildEnemy() {
-        List<String> pool = new ArrayList<>();
-        for (String enemy : enemyChoices) {
-            if (!"All Mighty".equalsIgnoreCase(enemy)) {
-                pool.add(enemy);
-            }
-        }
-        if (pool.isEmpty()) {
-            return "Voltchu";
-        }
-        return pool.get(random.nextInt(pool.size()));
+        return enemyChoices[random.nextInt(enemyChoices.length)];
     }
 
     private void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices,
