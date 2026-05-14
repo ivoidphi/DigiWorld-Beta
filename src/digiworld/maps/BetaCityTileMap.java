@@ -16,7 +16,6 @@ public final class BetaCityTileMap {
             }
         }
 
-        // Main roads.
         for (int y = 0; y < height; y++) {
             for (int dx = -1; dx <= 1; dx++) {
                 int x = width / 2 + dx;
@@ -34,7 +33,6 @@ public final class BetaCityTileMap {
             }
         }
 
-        // Decorative bush clusters.
         Random random = new Random(2026);
         for (int i = 0; i < 28; i++) {
             int cx = 4 + random.nextInt(Math.max(1, width - 8));
@@ -56,7 +54,6 @@ public final class BetaCityTileMap {
                 int dx = x - cx;
                 int dy = y - cy;
                 if (dx * dx + dy * dy <= size * size) {
-                    // keep center roads clear
                     if (Math.abs(x - width / 2) <= 2 || Math.abs(y - height / 2) <= 2) {
                         continue;
                     }
@@ -75,4 +72,3 @@ public final class BetaCityTileMap {
         }
     }
 }
-

@@ -25,5 +25,8 @@ public final class WorldTileMapRegistry {
         if ("World 3 - Beta City".equalsIgnoreCase(name)) {
             BetaCityTileMap.applyTo(world);
         }
+        if ("Corrupted Beta City".equalsIgnoreCase(name)) {
+            BetaCityTileMap.applyTo(world);
+        }
     }
 }

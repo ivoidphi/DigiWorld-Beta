@@ -4,10 +4,10 @@ public class QuestManager {
     public static final int STAGE_GAME_START = 0;
     public static final int STAGE_TALKED_PROF = 1;
     public static final int STAGE_TALKED_GEN = 2;
-    public static final int STAGE_RETURNED_PROF = STAGE_TALKED_GEN; // alias for legacy checks
+    public static final int STAGE_RETURNED_PROF = STAGE_TALKED_GEN;
     public static final int STAGE_SELECTED_STARTERS = 3;
     public static final int STAGE_ENTERED_DIGIWORLD = 4;
-    public static final int STAGE_REACHED_ALPHA_VILLAGE = STAGE_ENTERED_DIGIWORLD; // alias for legacy checks
+    public static final int STAGE_REACHED_ALPHA_VILLAGE = STAGE_ENTERED_DIGIWORLD;
     public static final int STAGE_TALKED_CHIEF_REI = 5;
     public static final int STAGE_COMPLETED_TUTORIAL = 6;
     public static final int STAGE_DEFEATED_ALDRICH = 7;
@@ -52,7 +52,7 @@ public class QuestManager {
             case STAGE_RETURNED_TO_LAB -> "Defeat Ace Trainer Jazz";
             case STAGE_ENTERED_BETA_CITY -> "Go to the Tournament Hall";
             case STAGE_DEFEATED_ACE_JAZZ -> "Wait for the Tournament to Begin";
-            case STAGE_ENTERED_TOURNAMENT_HALL -> "Wait for the Tournament to Begin";
+            case STAGE_ENTERED_TOURNAMENT_HALL -> "Challenge Trialmaster";
             case STAGE_DEFEATED_TRIALMASTER -> "Wait for the Tournament to Begin";
             case STAGE_TOURNAMENT_STARTED -> "Find the source of the glitch";
             case STAGE_REACHED_GLITCH_AREA -> "Defeat Glitch";

@@ -29,7 +29,6 @@ public final class HometownTileMap {
             }
         }
 
-        // Light variation stripes for readability.
         for (int y = 3; y < height - 3; y++) {
             for (int x = 3; x < width - 3; x++) {
                 if ((x + y) % 5 == 0) {

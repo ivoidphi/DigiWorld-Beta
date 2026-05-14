@@ -198,7 +198,7 @@ public class BattleSystem {
         for (int i = 0; i < partySize; i++) {
             String name = beastNames[i] == null || beastNames[i].isBlank() ? "Nokami" : beastNames[i].trim();
             newCreatures[i] = BeastCatalog.createCreature(name);
-            newSprites[i] = getBattleSpriteForCreature(name);
+            newSprites[i] = loadPlayerBeastSprite(toAssetKey(name));
             newHitSprites[i] = createRedTintedSprite(newSprites[i]);
         }
         playerCreatures = newCreatures;
@@ -853,21 +853,21 @@ public class BattleSystem {
     }
 
     private BufferedImage getActivePlayerSprite() {
-        BattleCreature activeCreature = getActivePlayerCreature();
-        BufferedImage beastSprite = getBattleSpriteForCreature(activeCreature.getName());
-        if (beastSprite != null) {
-            return beastSprite;
+        BufferedImage backSprite = playerBattleSprites[activePlayerIndex];
+        if (backSprite != null) {
+            return backSprite;
         }
-        return playerBattleSprites[activePlayerIndex];
+        BattleCreature activeCreature = getActivePlayerCreature();
+        return getBattleSpriteForCreature(activeCreature.getName());
     }
 
     private BufferedImage getActivePlayerSpriteHit() {
-        BattleCreature activeCreature = getActivePlayerCreature();
-        BufferedImage beastHit = getHitSpriteForCreature(activeCreature.getName());
-        if (beastHit != null) {
-            return beastHit;
+        BufferedImage backHit = playerBattleSpritesHit[activePlayerIndex];
+        if (backHit != null) {
+            return backHit;
         }
-        return playerBattleSpritesHit[activePlayerIndex];
+        BattleCreature activeCreature = getActivePlayerCreature();
+        return getHitSpriteForCreature(activeCreature.getName());
     }
 
     private BufferedImage getBattleSpriteForCreature(String creatureName) {
@@ -1149,6 +1149,22 @@ public class BattleSystem {
         return null;
     }
 
+    private static BufferedImage loadPlayerBeastSprite(String key) {
+        String base = "res/beasts/" + key + "/" + key;
+        String[] candidates = new String[] {
+                base + "-b.png",
+                base + "-fw.png",
+                base + "-f.png"
+        };
+        for (String path : candidates) {
+            BufferedImage sprite = loadSprite(path);
+            if (sprite != null) {
+                return sprite;
+            }
+        }
+        return null;
+    }
+
     private static String toAssetKey(String creatureName) {
         if (creatureName == null || creatureName.isBlank()) {
             return "";
@@ -1192,7 +1208,6 @@ public class BattleSystem {
     }
 
     public void setVisible(boolean b) {
-        // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setVisible'");
     }
 }
