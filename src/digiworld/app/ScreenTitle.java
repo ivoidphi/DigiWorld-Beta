@@ -48,7 +48,7 @@ public class ScreenTitle extends JFrame {
             dispose();
             GameFrame frame = new GameFrame();
             frame.setVisible(true);
-            SoundManager.getInstance().playWorldMusic("Hometown");
+            SoundManager.getInstance().playWorldMusic("Test Map");
         });
 
         creditsButton.addActionListener(e -> javax.swing.JOptionPane.showMessageDialog(

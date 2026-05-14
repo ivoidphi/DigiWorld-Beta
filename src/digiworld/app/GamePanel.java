@@ -53,6 +53,18 @@ public class GamePanel extends JPanel implements Runnable {
 
     public int getWorldIndex() { return worldIndex; }
     public Player getPlayer() { return player; }
+    public int getCoins() { return coins; }
+    public void addCoins(int amount) { coins = Math.max(0, coins + amount); }
+
+    public int getPlayerAverageLevel() {
+        BattleCreature[] equipped = inventory.getEquippedBeasts();
+        if (equipped == null || equipped.length == 0) return 1;
+        int total = 0;
+        for (BattleCreature b : equipped) {
+            total += b.getLevel();
+        }
+        return Math.max(1, total / equipped.length);
+    }
 
     private Thread gameThread;
     private long lastTimeNanos;
@@ -110,6 +122,7 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean hasGWatch;
     private boolean hasMechDriver;
     private int beastCards;
+    private int coins;
     private static final class BushTile {
         final int x;
         final int y;
@@ -268,6 +281,7 @@ public class GamePanel extends JPanel implements Runnable {
         hasGWatch = false;
         hasMechDriver = false;
         beastCards = 0;
+        coins = 0;
         validEncounterBushes = new ArrayList<>();
         hiddenVineratopsTileX = -1;
         hiddenVineratopsTileY = -1;
@@ -401,10 +415,14 @@ public class GamePanel extends JPanel implements Runnable {
             if (!battleSystem.isActive()) {
                 encounterCooldownTimer = 2.0 + random.nextDouble() * 3.0;
 
-                // --- LEVEL UP SYSTEM FIX: Capture the actual leveled-up object ---
                 BattleCreature caughtCreature = battleSystem.consumeCaughtCreature();
                 if (caughtCreature != null) {
                     inventory.addBeast(caughtCreature);
+                }
+
+                int earnedCoins = battleSystem.consumeCoinsEarned();
+                if (earnedCoins > 0) {
+                    addCoins(earnedCoins);
                 }
 
                 String msg = battleSystem.getMessage();
@@ -904,7 +922,7 @@ public class GamePanel extends JPanel implements Runnable {
                     new String[]{
                             "Who dares step into my domain?",
                             "My name is " + PLAYER_NAME + ". I came to challenge you.",
-                            "Then face me. I am Altair, the Alpha. And this is my partner, the Alpha Beast, Gekuma. BEAST CARD ON! HENSHIN!"
+                            "Then face me. I am Altair, the Alpha. And this is my partner, the Alpha Beast, Kingmantis. BEAST CARD ON! HENSHIN!"
                     }
             );
             startDialogue(script, "START_BOSS:aldrich|SET_OBJECTIVE:Defeat Aldrich");
@@ -1031,7 +1049,7 @@ public class GamePanel extends JPanel implements Runnable {
                     }
                     case "aldrich" -> {
                         aldrichState = 1;
-                        startBossBattle(worlds[worldIndex], "Gekuma");
+                        startBossBattle(worlds[worldIndex], "Kingmantis");
                     }
                     case "trialmaster" -> startBossBattle(worlds[worldIndex], "Voltchu");
                     case "glitch_woltrix" -> startBossBattle(worlds[worldIndex], "Woltrix");
@@ -1867,6 +1885,7 @@ public class GamePanel extends JPanel implements Runnable {
         data.put("hasGWatch", String.valueOf(hasGWatch));
         data.put("hasMechDriver", String.valueOf(hasMechDriver));
         data.put("beastCards", String.valueOf(beastCards));
+        data.put("coins", String.valueOf(coins));
         data.put("ownedBeasts", String.join(",", inventory.getOwnedBeastNames()));
         data.put("equippedBeasts", String.join(",", inventory.getEquippedBeastNames()));
         SaveManager.save(data);
@@ -1876,6 +1895,7 @@ public class GamePanel extends JPanel implements Runnable {
     private World[] createWorlds() {
         String aldrichBase = findAldrichSpriteBaseDir();
         World[] built = new World[]{
+                new World("Test Map", 15, 14, TILE_SIZE, 7, 7, new Npc[]{}),
                 new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{
                         new Npc(
                                 "Professor Alfred",
@@ -2013,7 +2033,6 @@ public class GamePanel extends JPanel implements Runnable {
             player.render(scene, camera);
             renderParticles(scene, false);
             current.drawStructuresAfter(scene, camera, (int) player.getY() + player.getSize());
-            drawDebugHitboxes(scene);
             drawScanMarker(scene);
             drawHometownTeleportDoorPlaceholder(scene, current);
             if (bossArenaActive) {
@@ -2099,6 +2118,7 @@ public class GamePanel extends JPanel implements Runnable {
                 objectiveCompleteAlpha,
                 hasGWatch,
                 scanUiFlashTimer > 0.0,
+                coins,
                 worldBannerAlpha
         );
     }
@@ -2368,19 +2388,22 @@ public class GamePanel extends JPanel implements Runnable {
         if (!prepareBattlePartyFromInventory()) {
             return;
         }
+        int playerLevel = getPlayerAverageLevel();
+        int bossLevel = Math.max(3, (int) Math.ceil(playerLevel * 1.75));
+        bossLevel = Math.min(bossLevel, 20);
         bossArenaActive = true;
         currentBossWorldIndex = worldIndex;
         currentBossName = bossName == null ? null : bossName.trim().toLowerCase();
-        interactionMessage = "Boss battle: " + bossName;
+        interactionMessage = "Boss battle: " + bossName + " (Lv" + bossLevel + ")";
         battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
-        battleSystem.startWildBattle(bossName);
+        battleSystem.startWildBattle(bossName, bossLevel);
         gameState = GameState.BATTLE;
         soundManager.playCombatMusic();
     }
 
     private boolean isBossUnlockedByQuest(String bossName) {
         String normalized = bossName == null ? "" : bossName.trim().toLowerCase();
-        if ("gekuma".equals(normalized) || "aldrich".equals(normalized)) {
+        if ("kingmantis".equals(normalized) || "aldrich".equals(normalized)) {
             return questManager.atLeast(QuestManager.STAGE_COMPLETED_TUTORIAL);
         }
         if ("ace jazz".equals(normalized) || "pirrot".equals(normalized)) {

@@ -86,6 +86,8 @@ public class BattleSystem {
     private boolean forceSwitchChoiceRequired;
     private String lastResolvedEnemyName;
     private boolean lastBattleWon;
+    private int lastCoinsEarned;
+    private java.util.List<String> lastLeveledUpNames;
 
     private BufferedImage enemyBattleSprite;
     private BufferedImage enemyBattleSpriteHit;
@@ -118,6 +120,8 @@ public class BattleSystem {
         forceSwitchChoiceRequired = false;
         lastResolvedEnemyName = "";
         lastBattleWon = false;
+        lastCoinsEarned = 0;
+        lastLeveledUpNames = new java.util.ArrayList<>();
     }
 
     public void setSoundManager(SoundManager soundManager) {
@@ -125,7 +129,11 @@ public class BattleSystem {
     }
 
     public void startWildBattle(String enemyBeastName) {
-        enemyCreature = createWildByName(enemyBeastName);
+        startWildBattle(enemyBeastName, 1);
+    }
+
+    public void startWildBattle(String enemyBeastName, int level) {
+        enemyCreature = BeastCatalog.createCreature(enemyBeastName, level);
         enemyBattleSprite = getBattleSpriteForCreature(enemyCreature.getName(), false);
         enemyBattleSpriteHit = getHitSpriteForCreature(enemyCreature.getName(), false);
         battleType = BattleType.WILD;
@@ -158,6 +166,8 @@ public class BattleSystem {
         message = "Choose your beast for this battle.";
         lastResolvedEnemyName = "";
         lastBattleWon = false;
+        lastCoinsEarned = 0;
+        lastLeveledUpNames = new java.util.ArrayList<>();
     }
 
     public void startTrainerBattle(String enemyBeastName) {
@@ -174,6 +184,18 @@ public class BattleSystem {
     public boolean consumeLastBattleWon() {
         boolean out = lastBattleWon;
         lastBattleWon = false;
+        return out;
+    }
+
+    public int consumeCoinsEarned() {
+        int out = lastCoinsEarned;
+        lastCoinsEarned = 0;
+        return out;
+    }
+
+    public java.util.List<String> consumeLeveledUpNames() {
+        java.util.List<String> out = new java.util.ArrayList<>(lastLeveledUpNames);
+        lastLeveledUpNames.clear();
         return out;
     }
 
@@ -571,23 +593,30 @@ public class BattleSystem {
 
         if (enemyCreature.isFainted()) {
             int expGain = expYieldForLevel(enemyCreature.getLevel());
-            boolean anyLeveled = false;
+            int coinGain = coinYieldForLevel(enemyCreature.getLevel());
+            lastLeveledUpNames.clear();
+            lastCoinsEarned = coinGain;
 
             for (int i = 0; i < playerCreatures.length; i++) {
                 if (ownedPlayerCreatures[i] && playerCreatures[i] != null) {
                     if (playerCreatures[i].addExp(expGain)) {
-                        anyLeveled = true;
+                        lastLeveledUpNames.add(playerCreatures[i].getName());
                     }
                 }
             }
 
-            String result = "You won! All beasts gained +" + expGain + " EXP.";
-            if (anyLeveled) {
-                result += " Level up!";
+            StringBuilder result = new StringBuilder("You won! +" + expGain + " EXP each, +" + coinGain + " coins.");
+            if (!lastLeveledUpNames.isEmpty()) {
+                result.append(" ");
+                for (int li = 0; li < lastLeveledUpNames.size(); li++) {
+                    if (li > 0) result.append(", ");
+                    result.append(lastLeveledUpNames.get(li));
+                }
+                result.append(" leveled up!");
             }
             lastResolvedEnemyName = enemyCreature != null ? enemyCreature.getName() : "";
             lastBattleWon = true;
-            enterResult(result);
+            enterResult(result.toString());
             return;
         }
 
@@ -1131,6 +1160,10 @@ public class BattleSystem {
             case 19 -> 190;
             default -> 5000;
         };
+    }
+
+    private int coinYieldForLevel(int level) {
+        return expYieldForLevel(level) * 2;
     }
 
     private void applySpecialMoveEffect(BattleCreature attacker, BattleCreature defender, BattleMove move,

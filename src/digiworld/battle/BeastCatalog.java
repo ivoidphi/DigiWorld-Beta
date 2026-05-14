@@ -21,24 +21,24 @@ public final class BeastCatalog {
             BattleMove[] moves
     ) {}
 
-    private static final BeastTemplate[] TEMPLATES = new BeastTemplate[]{
-            new BeastTemplate("Kyoflare", 95, 120, 70, 95, 110, 14, 1, BeastElement.FIRE, "The supernova tyrant, KYOFLARE!",
+private static final BeastTemplate[] TEMPLATES = new BeastTemplate[]{
+            new BeastTemplate("Kyoflare", 95, 115, 70, 95, 110, 14, 1, BeastElement.FIRE, "The supernova tyrant, KYOFLARE!",
                     new BattleMove[]{
                             new BattleMove("Kyoryu Tail", 40, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
                             new BattleMove("Blaze Fangs", 85, 35, 1, StatusEffect.BURN, 0.10, BeastElement.FIRE),
                             new BattleMove("Solar Burst", 130, 65, 3, StatusEffect.BURN, 0.30, BeastElement.FIRE)
                     }),
-            new BeastTemplate("Nokami", 100, 95, 70, 115, 100, 15, 1, BeastElement.WATER, "The master of water element, NOKAMI!",
+            new BeastTemplate("Nokami", 110, 105, 75, 110, 100, 15, 1, BeastElement.WATER, "The master of water element, NOKAMI!",
                     new BattleMove[]{
                             new BattleMove("Swift Strike", 40, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
-                            new BattleMove("Aqua Slice", 70, 30, 1, StatusEffect.NONE, 0.0, BeastElement.WATER, MoveEffect.HIGH_CRIT, 0.45, 0, 0, 0.0),
-                            new BattleMove("Shuriken Wave", 110, 0, 2, StatusEffect.NONE, 0.0, BeastElement.WATER, MoveEffect.EXTRA_HITS_CHANCE, 0.50, 0, 1, 0.5)
+                            new BattleMove("Aqua Slice", 75, 30, 1, StatusEffect.NONE, 0.0, BeastElement.WATER, MoveEffect.HIGH_CRIT, 0.45, 0, 0, 0.0),
+                            new BattleMove("Shuriken Wave", 115, 0, 2, StatusEffect.NONE, 0.0, BeastElement.WATER, MoveEffect.EXTRA_HITS_CHANCE, 0.50, 0, 1, 0.5)
                     }),
-            new BeastTemplate("Vineratops", 140, 85, 125, 50, 120, 16, 1, BeastElement.GRASS, "The forest guardian, VINERATOPS!",
+            new BeastTemplate("Vineratops", 145, 85, 125, 50, 120, 16, 1, BeastElement.GRASS, "The forest guardian, VINERATOPS!",
                     new BattleMove[]{
                             new BattleMove("Horn Charge", 35, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
                             new BattleMove("Horn Vines", 75, 30, 1, StatusEffect.NONE, 0.0, BeastElement.GRASS, MoveEffect.HEAL_SELF_PERCENT_MAX_HP, 0.10, 0, 0, 0.0),
-                            new BattleMove("Horn Bloom", 115, 60, 3, StatusEffect.NONE, 0.0, BeastElement.GRASS, MoveEffect.HEAL_SELF_PERCENT_MAX_HP, 0.15, 0, 0, 0.0)
+                            new BattleMove("Horn Bloom", 120, 60, 3, StatusEffect.NONE, 0.0, BeastElement.GRASS, MoveEffect.HEAL_SELF_PERCENT_MAX_HP, 0.15, 0, 0, 0.0)
                     }),
             new BeastTemplate("Voltchu", 100, 100, 65, 120, 100, 15, 1, BeastElement.ELECTRIC, "The greatest lightning swordsmouse, VOLTCHU!",
                     new BattleMove[]{
@@ -46,19 +46,19 @@ public final class BeastCatalog {
                             new BattleMove("Electric Slash", 80, 30, 1, StatusEffect.NONE, 0.0, BeastElement.ELECTRIC, MoveEffect.LOWER_TARGET_ATTACK_PERCENT, 0.20, 1, 0, 0.0),
                             new BattleMove("Lightning Wrath", 120, 60, 3, StatusEffect.PARALYZE, 0.30, BeastElement.ELECTRIC)
                     }),
-            new BeastTemplate("Zyuugor", 150, 65, 130, 45, 130, 18, 1, BeastElement.EARTH, "The earthshaking gorilla, Zyuugor!",
+            new BeastTemplate("Zyuugor", 155, 65, 130, 45, 130, 18, 1, BeastElement.EARTH, "The earthshaking gorilla, Zyuugor!",
                     new BattleMove[]{
                             new BattleMove("Kong Fist", 40, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
                             new BattleMove("Mineral Bomb", 80, 35, 1, StatusEffect.NONE, 0.30, BeastElement.EARTH, MoveEffect.AFTERSHOCK_PERCENT_TARGET_MAX_HP, 0.10, 0, 0, 0.0),
                             new BattleMove("Colossus Breaker", 125, 70, 3, StatusEffect.NONE, 1.0, BeastElement.EARTH, MoveEffect.AFTERSHOCK_PERCENT_TARGET_MAX_HP, 0.10, 0, 0, 0.0)
                     }),
-            new BeastTemplate("Pirrot", 105, 90, 65, 115, 100, 15, 1, BeastElement.WIND, "The Bird of the seven seas, Pirrot!",
+            new BeastTemplate("Pirrot", 115, 100, 70, 110, 100, 15, 1, BeastElement.WIND, "The Bird of the seven seas, Pirrot!",
                     new BattleMove[]{
                             new BattleMove("Feather Bullet", 40, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
                             new BattleMove("Wing Blade", 80, 30, 1, StatusEffect.NONE, 0.0, BeastElement.WIND, MoveEffect.LOWER_TARGET_DEFENSE_PERCENT, 0.20, 1, 0, 0.0),
                             new BattleMove("Tempest Slash", 115, 55, 2, StatusEffect.NONE, 0.0, BeastElement.WIND, MoveEffect.LOWER_TARGET_ATTACK_PERCENT, 0.50, 1, 0, 0.0)
                     }),
-            new BeastTemplate("Gekuma", 110, 105, 85, 80, 110, 15, 1, BeastElement.FIGHTING, "The master of Bear God Fist, Gekuma!",
+            new BeastTemplate("Gekuma", 115, 110, 85, 80, 110, 15, 1, BeastElement.FIGHTING, "The master of Bear God Fist, Gekuma!",
                     new BattleMove[]{
                             new BattleMove("Bear Claw", 40, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
                             new BattleMove("Power Jab", 85, 35, 1, StatusEffect.NONE, 0.0, BeastElement.FIGHTING, MoveEffect.LOWER_TARGET_DEFENSE_PERCENT, 0.20, 1, 0, 0.0),
@@ -70,17 +70,17 @@ public final class BeastCatalog {
                             new BattleMove("Crescent Claw", 90, 35, 1, StatusEffect.NONE, 0.0, BeastElement.DARK, MoveEffect.HIGH_CRIT, 0.20, 0, 0, 0.0),
                             new BattleMove("Phantom Slash", 125, 65, 2, StatusEffect.FEAR, 0.50, BeastElement.DARK)
                     }),
-            new BeastTemplate("Kingmantis", 140, 150, 65, 90, 140, 18, 1, BeastElement.STEEL, "The king of blades, KINGMANTIS!",
+            new BeastTemplate("Kingmantis", 130, 130, 65, 95, 130, 18, 1, BeastElement.STEEL, "The king of blades, KINGMANTIS!",
                     new BattleMove[]{
                             new BattleMove("Iron Jab", 50, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
                             new BattleMove("Twin Dagger", 95, 35, 1, StatusEffect.NONE, 0.0, BeastElement.STEEL, MoveEffect.EXTRA_HITS, 0.0, 0, 1, 0.50),
                             new BattleMove("Sovereign Blade", 145, 70, 2, StatusEffect.NONE, 0.0, BeastElement.STEEL, MoveEffect.HIGH_CRIT, 0.55, 0, 0, 0.0)
                     }),
-            new BeastTemplate("Woltrix", 150, 160, 130, 140, 180, 25, 1, BeastElement.ELECTRIC, "The incomplete lightning savage, WOLTRIX!",
+            new BeastTemplate("Woltrix", 135, 140, 120, 135, 160, 25, 1, BeastElement.ELECTRIC, "The incomplete lightning savage, WOLTRIX!",
                     new BattleMove[]{
                             new BattleMove("Iron Fang", 55, 0, 0, StatusEffect.NONE, 0.0, BeastElement.NEUTRAL),
                             new BattleMove("Volt Saber", 105, 45, 1, StatusEffect.PARALYZE, 0.40, BeastElement.ELECTRIC),
-                            new BattleMove("Thunder Barrage", 165, 90, 3, StatusEffect.NONE, 0.0, BeastElement.ELECTRIC, MoveEffect.EXTRA_HITS, 0.0, 0, 4, 0.30)
+                            new BattleMove("Thunder Barrage", 160, 90, 3, StatusEffect.NONE, 0.0, BeastElement.ELECTRIC, MoveEffect.EXTRA_HITS, 0.0, 0, 4, 0.30)
                     }),
             new BeastTemplate("All Mighty", 9999, 9999, 9999, 9999, 9999, 999, 99, BeastElement.NEUTRAL, "The invincible test beast, ALL MIGHTY!",
                     new BattleMove[]{
@@ -104,11 +104,16 @@ public final class BeastCatalog {
         return null;
     }
 
-    public static BattleCreature createCreature(String name) {
+public static BattleCreature createCreature(String name) {
+        return createCreature(name, 1);
+    }
+
+    public static BattleCreature createCreature(String name, int level) {
         BeastTemplate template = findByName(name);
         if (template == null) {
             template = TEMPLATES[0];
         }
+        int finalLevel = Math.max(1, level);
         return new BattleCreature(
                 template.name(),
                 template.baseHp(),
@@ -118,7 +123,7 @@ public final class BeastCatalog {
                 template.baseEnergy(),
                 template.energyRegen(),
                 template.element(),
-                template.level()
+                finalLevel
         );
     }
 

@@ -163,11 +163,6 @@ public class BattleCreature {
             level++;
             leveled = true;
         }
-        if (leveled) {
-            hp = getMaxHp();
-            energy = getMaxEnergy();
-            clearStatus();
-        }
         return leveled;
     }
 
