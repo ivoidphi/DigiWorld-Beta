@@ -8,6 +8,8 @@ public final class AlphaVillageTileMap {
     public static final int TRACKED_BUSH_Y = 15;
     public static final int HEART_CENTER_X = 25;
     public static final int HEART_CENTER_Y = 8;
+    private static final String TREE_PATH = "res/Structures/treefinal.png";
+    private static final int TILE_SIZE = 32;
 
     private AlphaVillageTileMap() {
     }
@@ -80,8 +82,85 @@ public final class AlphaVillageTileMap {
                 world.setTile(x, y, TileMapPalette.toTile(map[y][x]));
             }
         }
+        addForestStructures(world, map);
+    }
 
-        // Add house structure at tile 25,14
-        world.addStructure(new Structure(25 * 32, 14 * 32, 64, 64, 32, 10, 10, "res/Structures/house_finalbot.png", "res/Structures/house_finalTop.png", 32));
+    private static void addForestStructures(World world, int[][] map) {
+        for (int y = 0; y < map.length; y++) {
+            for (int x = 0; x < map[y].length; x++) {
+                if (!shouldPlaceTree(map, x, y, world.getWidth(), world.getHeight())) {
+                    continue;
+                }
+                world.addStructure(new Structure(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE - TILE_SIZE,
+                        TILE_SIZE,
+                        TILE_SIZE * 2,
+                        0,
+                        0,
+                        0,
+                        TREE_PATH,
+                        null,
+                        0
+                ));
+            }
+        }
+    }
+
+    private static boolean shouldPlaceTree(int[][] map, int x, int y, int width, int height) {
+        if (map[y][x] == TileMapPalette.GRASS_BUSH || map[y][x] == TileMapPalette.WATER) {
+            return false;
+        }
+        // The tree image is 2 tiles tall, so don't hang it into water above.
+        if (y <= 0 || map[y - 1][x] == TileMapPalette.WATER) {
+            return false;
+        }
+
+        // Close off the northwest shore access with a deliberate tree band.
+        if (y == 11 && x >= 11 && x <= 16) {
+            return true;
+        }
+
+        // Remove the narrow 2-column protruding strip near the sign.
+        if (x >= 18 && x <= 19 && y >= 5 && y <= 11) {
+            return false;
+        }
+
+        // Keep the right-side clearing open by removing these vertical tree columns.
+        if ((x == 32 || x == 38) && y >= 13 && y <= 24) {
+            return false;
+        }
+
+        // Keep the village sign area open.
+        if (x >= 18 && x <= 31 && y >= 3 && y <= 7) {
+            return false;
+        }
+
+        // Keep spawn / Chief Rei plaza open with some breathing room.
+        if (x >= 20 && x <= 31 && y >= 15 && y <= 25) {
+            return false;
+        }
+
+        // Keep the Aldrich arena and its approach open.
+        if (x >= 14 && x <= 34 && y >= 2 && y <= 16) {
+            return false;
+        }
+
+        // Keep the tracked bush lane and center field readable.
+        if (x >= 9 && x <= 22 && y >= 12 && y <= 22) {
+            return false;
+        }
+
+        boolean topForest = y >= 5 && y <= 9 && x >= 12 && x <= width - 8;
+        boolean leftForest = x >= 5 && x <= 10 && y >= 10 && y <= height - 9;
+        boolean rightForest = x >= width - 11 && x <= width - 6 && y >= 10 && y <= height - 10;
+        boolean lowerForest = y >= 25 && y <= height - 6 && x >= 8 && x <= width - 8;
+
+        // Add denser coverage around the wild beast side and the trainer side.
+        boolean trackedBushSideForest = x >= 8 && x <= 12 && y >= 13 && y <= 22;
+        boolean chiefReiSideForest = x >= 32 && x <= 40 && y >= 16 && y <= 24;
+
+        return topForest || leftForest || rightForest || lowerForest
+                || trackedBushSideForest || chiefReiSideForest;
     }
 }

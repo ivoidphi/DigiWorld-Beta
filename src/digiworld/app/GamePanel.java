@@ -195,8 +195,8 @@ public class GamePanel extends JPanel implements Runnable {
         uiRenderer = new GameUiRenderer(LOGICAL_WIDTH, LOGICAL_HEIGHT, PLAYER_NAME, battleSystem);
         inventory = new Inventory();
         random = new Random();
-        worldIndex = 0;
-        player = new Player(worlds[0].getSpawnTileX() * TILE_SIZE, worlds[0].getSpawnTileY() * TILE_SIZE, TILE_SIZE, input, TILE_SIZE);
+        worldIndex = 1;
+        player = new Player(worlds[worldIndex].getSpawnTileX() * TILE_SIZE, worlds[worldIndex].getSpawnTileY() * TILE_SIZE, TILE_SIZE, input, TILE_SIZE);
         doorManager = new DoorManager(this, TILE_SIZE);
         player.setDoorManager(doorManager);
         frameBuffer = new BufferedImage(LOGICAL_WIDTH, LOGICAL_HEIGHT, BufferedImage.TYPE_INT_ARGB);
@@ -647,7 +647,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void handleProfAlfredDialogue(Npc npc, String worldName) {
-        if (worldName.contains("hometown")) {
+        if (worldName.contains("hometown") || worldName.contains("laboratory")) {
             if (questManager.isStage(QuestManager.STAGE_GAME_START)) {
                 DialogueSequence script = DialogueFactory.createSequence(
                         new String[]{"Professor Alfred", "Professor Alfred", "Professor Alfred", PLAYER_NAME},
@@ -710,7 +710,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void handleGenEdDialogue(Npc npc, String worldName) {
-        if (worldName.contains("hometown")) {
+        if (worldName.contains("hometown") || worldName.contains("house 1")) {
             if (!questManager.isStage(QuestManager.STAGE_TALKED_PROF)) {
                 showNpcSpeechBubble(npc, "You should speak with Professor Alfred first.", 2.0);
                 npc.endInteraction();
@@ -1351,7 +1351,7 @@ public class GamePanel extends JPanel implements Runnable {
         if (targetWorldIndex == 2) {
             return pendingBetaIntroDialogue || questManager.atLeast(QuestManager.STAGE_RETURNED_TO_LAB);
         }
-        if (targetWorldIndex == WorldIndex.HOUSE_1) {
+        if (targetWorldIndex == WorldIndex.HOUSE_1 || targetWorldIndex == WorldIndex.LABORATORY) {
             return true;
         }
         return false;
@@ -1578,28 +1578,7 @@ public class GamePanel extends JPanel implements Runnable {
     private World[] createWorlds() {
         String aldrichBase = findAldrichSpriteBaseDir();
         World[] built = new World[]{
-                new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{
-                        new Npc(
-                                "Professor Alfred",
-                                TILE_SIZE, TILE_SIZE,
-                                new Color(214, 93, 177),
-                                new int[][]{{24, 18}, {26, 18}, {26, 20}, {24, 20}},
-                                "res/characters/professor-alfred/profalfred-fw.png",
-                                "res/characters/professor-alfred/profalfred-b.png",
-                                "res/characters/professor-alfred/profalfred-l.png",
-                                "res/characters/professor-alfred/profalfred-r.png"
-                        ),
-                        new Npc(
-                                "General Edrian",
-                                TILE_SIZE, TILE_SIZE,
-                                new Color(245, 132, 92),
-                                new int[][]{{20, 17}, {18, 17}, {18, 20}, {20, 20}},
-                                "res/characters/gen-ed/gened-fw.png",
-                                "res/characters/gen-ed/gened-b.png",
-                                "res/characters/gen-ed/gened-l.png",
-                                "res/characters/gen-ed/gened-r.png"
-                        )
-                }),
+                new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{}),
                 new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
                         new Npc(
                                 "Chief Rei",
@@ -1662,12 +1641,29 @@ public class GamePanel extends JPanel implements Runnable {
                         )
                 }),
                 // ── House interiors ──────────────────────────────────────────────
-                // WorldIndex.HOUSE_1 = 4
-                // spawnTileX/Y = where player appears when entering from outside
-                // Tune these after using the debug coordinate display
-                new World("House 1", 46, 36, TILE_SIZE, 25, 19, new Npc[]{
-                        // Add interior NPCs here when ready
-                        // new Npc("Chief Rei Interior", TILE_SIZE, TILE_SIZE, ...)
+                new World("House 1", 46, 37, TILE_SIZE, 22, 22, new Npc[]{
+                        new Npc(
+                                "General Edrian",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(245, 132, 92),
+                                new int[][]{{22, 20}, {24, 20}, {24, 21}, {22, 21}},
+                                "res/characters/gen-ed/gened-fw.png",
+                                "res/characters/gen-ed/gened-b.png",
+                                "res/characters/gen-ed/gened-l.png",
+                                "res/characters/gen-ed/gened-r.png"
+                        )
+                }),
+                new World("Laboratory", 46, 37, TILE_SIZE, 22, 22, new Npc[]{
+                        new Npc(
+                                "Professor Alfred",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(214, 93, 177),
+                                new int[][]{{22, 16}, {23, 16}, {24, 16}, {25, 16}},
+                                "res/characters/professor-alfred/profalfred-fw.png",
+                                "res/characters/professor-alfred/profalfred-b.png",
+                                "res/characters/professor-alfred/profalfred-l.png",
+                                "res/characters/professor-alfred/profalfred-r.png"
+                        )
                 })
         };
         for (World world : built) {
@@ -1721,6 +1717,7 @@ public class GamePanel extends JPanel implements Runnable {
             player.render(scene, camera);
             renderParticles(scene, false);
             current.drawStructuresAfter(scene, camera, (int) player.getY() + player.getSize());
+            drawHometownTeleportDoorPlaceholder(scene, current);
             drawDebugHitboxes(scene);
             drawScanMarker(scene);
             if (bossArenaActive) {
@@ -2019,7 +2016,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     private boolean isGenEd(Npc npc, World world) {
         return npc != null
-                && "Hometown".equalsIgnoreCase(world.getName())
+                && ("Hometown".equalsIgnoreCase(world.getName()) || "House 1".equalsIgnoreCase(world.getName()))
                 && "General Edrian".equalsIgnoreCase(npc.getName());
     }
 
@@ -2031,7 +2028,8 @@ public class GamePanel extends JPanel implements Runnable {
         if (npc == null) {
             return;
         }
-        if ("General Edrian".equalsIgnoreCase(npc.getName()) && "Hometown".equalsIgnoreCase(world.getName())) {
+        if ("General Edrian".equalsIgnoreCase(npc.getName())
+                && ("Hometown".equalsIgnoreCase(world.getName()) || "House 1".equalsIgnoreCase(world.getName()))) {
             interactionMessage = "General Edrian: Gaming can build strategy and discipline. DigiWorld was made so gamers can think and move like true commanders.";
             seenNpcDialogues.add(npc.getName());
             return;

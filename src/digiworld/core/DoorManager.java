@@ -1,6 +1,7 @@
 package digiworld.core;
 
 import digiworld.app.GamePanel;
+import digiworld.maps.HometownTileMap;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,12 +28,49 @@ public class DoorManager {
     }
 
     private void registerDoors() {
-        // House 1 on Alpha Village — adjust doorTileX/Y to match your door texture position
-        // Use the HUD coordinate display to find the exact tile
+        // Center house in Hometown.
         doors.add(new DoorEntry(
-                WorldIndex.HOMETOWN, 11, 16, tileSize,
-                WorldIndex.HOUSE_1,       25, 19
+                WorldIndex.HOMETOWN,
+                HometownTileMap.centerHouseDoorTileX(),
+                HometownTileMap.centerHouseDoorTileY(),
+                tileSize,
+                WorldIndex.HOUSE_1, 22, 22
         ));
+
+        doors.add(new DoorEntry(
+                WorldIndex.HOUSE_1, 22, 24, tileSize,
+                WorldIndex.HOMETOWN,
+                HometownTileMap.centerHouseDoorTileX(),
+                HometownTileMap.centerHouseDoorTileY() + 1
+        ));
+        doors.add(new DoorEntry(
+                WorldIndex.HOUSE_1, 23, 24, tileSize,
+                WorldIndex.HOMETOWN,
+                HometownTileMap.centerHouseDoorTileX(),
+                HometownTileMap.centerHouseDoorTileY() + 1
+        ));
+
+        doors.add(new DoorEntry(
+                WorldIndex.HOMETOWN,
+                HometownTileMap.laboratoryDoorTileX(),
+                HometownTileMap.laboratoryDoorTileY(),
+                tileSize,
+                WorldIndex.LABORATORY, 22, 22
+        ));
+        doors.add(new DoorEntry(
+                WorldIndex.HOMETOWN,
+                HometownTileMap.laboratoryDoorTileX() + 1,
+                HometownTileMap.laboratoryDoorTileY(),
+                tileSize,
+                WorldIndex.LABORATORY, 22, 22
+        ));
+        doors.add(new DoorEntry(
+                WorldIndex.LABORATORY, 22, 24, tileSize,
+                WorldIndex.HOMETOWN,
+                HometownTileMap.laboratoryDoorTileX(),
+                HometownTileMap.laboratoryDoorTileY() + 1
+        ));
+
 
         // Add more doors here as you build them:
         // doors.add(new DoorEntry(WorldIndex.BETA_CITY, doorTileX, doorTileY, tileSize,

@@ -11,6 +11,8 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import javax.imageio.ImageIO;
 
@@ -26,6 +28,12 @@ public class World {
     private static final BufferedImage TILE_GRASS_BUSH = loadTile("res/tiles/grassbush.png");
     private static final BufferedImage TILE_WATER = loadTile("res/tiles/water.png");
     private final double[][] windStreaks;
+    private final List<Structure> structures = new ArrayList<>();
+    private BufferedImage backgroundImage;
+    private BufferedImage backgroundFillImage;
+    private int backgroundImageX;
+    private int backgroundImageY;
+    private boolean[][] blockedTiles;
 
     public World(
             String name,
@@ -43,6 +51,76 @@ public class World {
         this.npcs = npcs;
         this.windStreaks = createWindStreaks(width, height, tileSize, name.hashCode());
         buildMap(tileSize);
+    }
+
+    /** Add a placed structure to this world (used by tile map registries). */
+    public void addStructure(Structure s) {
+        if (s == null) return;
+        structures.add(s);
+    }
+
+    /** Return mutable list of structures (caller treats as read-only). */
+    public List<Structure> getStructures() {
+        return structures;
+    }
+
+    /** Draw structure bases (call before rendering player). */
+    public void drawStructuresBefore(Graphics2D g2d, Camera camera, int playerBottomY) {
+        // For now draw all bases before the player. Depth-sorting may be added later.
+        for (Structure s : structures) {
+            s.drawBase(g2d, camera);
+        }
+    }
+
+    /** Draw structure roofs/overlays (call after rendering player). */
+    public void drawStructuresAfter(Graphics2D g2d, Camera camera, int playerBottomY) {
+        for (Structure s : structures) {
+            s.drawRoof(g2d, camera);
+        }
+    }
+
+    public void setBackgroundImage(String path) {
+        backgroundImage = loadTile(path);
+        backgroundImageX = 0;
+        backgroundImageY = 0;
+    }
+
+    public void setBackgroundImage(String path, int x, int y) {
+        backgroundImage = loadTile(path);
+        backgroundImageX = x;
+        backgroundImageY = y;
+    }
+
+    public void setBackgroundFillImage(String path) {
+        backgroundFillImage = loadTile(path);
+    }
+
+    public boolean hasBackgroundImage() {
+        return backgroundImage != null;
+    }
+
+    public void clearBlockedTiles() {
+        blockedTiles = new boolean[getHeight()][getWidth()];
+    }
+
+    public void setTileBlocked(int x, int y, boolean blocked) {
+        if (x < 0 || y < 0 || y >= tiles.length || x >= tiles[0].length) {
+            return;
+        }
+        if (blockedTiles == null) {
+            clearBlockedTiles();
+        }
+        blockedTiles[y][x] = blocked;
+    }
+
+    public boolean isTileBlocked(int x, int y) {
+        if (x < 0 || y < 0 || y >= tiles.length || x >= tiles[0].length) {
+            return true;
+        }
+        if (blockedTiles != null) {
+            return blockedTiles[y][x];
+        }
+        return tiles[y][x].isBlocked();
     }
 
     private void buildMap(int tileSize) {
@@ -270,6 +348,23 @@ public class World {
     }
 
     public void renderTiles(Graphics2D g2d, Camera camera, int tileSize, int viewportWidth, int viewportHeight, double windTimeSeconds) {
+        if (backgroundImage != null) {
+            if (backgroundFillImage != null) {
+                int fillWidth = backgroundFillImage.getWidth();
+                int fillHeight = backgroundFillImage.getHeight();
+                if (fillWidth > 0 && fillHeight > 0) {
+                    int startX = Math.floorDiv(camera.getX(), fillWidth) * fillWidth - camera.getX();
+                    int startY = Math.floorDiv(camera.getY(), fillHeight) * fillHeight - camera.getY();
+                    for (int drawY = startY; drawY < viewportHeight; drawY += fillHeight) {
+                        for (int drawX = startX; drawX < viewportWidth; drawX += fillWidth) {
+                            g2d.drawImage(backgroundFillImage, drawX, drawY, null);
+                        }
+                    }
+                }
+            }
+            g2d.drawImage(backgroundImage, backgroundImageX - camera.getX(), backgroundImageY - camera.getY(), null);
+            return;
+        }
         int startTileX = Math.max(0, camera.getX() / tileSize);
         int startTileY = Math.max(0, camera.getY() / tileSize);
         int endTileX = Math.min(getWidth() - 1, (camera.getX() + viewportWidth) / tileSize + 1);
@@ -302,6 +397,9 @@ public class World {
     }
 
     public void renderWindLines(Graphics2D g2d, Camera camera, int viewportWidth, int viewportHeight, double windTimeSeconds) {
+        if (backgroundImage != null) {
+            return;
+        }
         int camX = camera.getX();
         int camY = camera.getY();
         g2d.setColor(new Color(255, 255, 255, 36));

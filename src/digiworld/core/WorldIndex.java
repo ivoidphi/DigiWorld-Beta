@@ -13,6 +13,7 @@ public final class WorldIndex {
     public static final int BETA_CITY     = 2;
     public static final int COLLAPSE_ZONE = 3;
     public static final int HOUSE_1       = 4;
+    public static final int LABORATORY    = 5;
 
     // Add new worlds here as you build them:
     // public static final int HOUSE_2    = 5;

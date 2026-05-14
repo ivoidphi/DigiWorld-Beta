@@ -78,10 +78,10 @@ public class Player extends Entity {
         int bottomTile = ((int) checkY + size - 1) / tileSize;
 
         // Tile collision
-        if (world.getTile(leftTile,  topTile).isBlocked()    ||
-            world.getTile(rightTile, topTile).isBlocked()    ||
-            world.getTile(leftTile,  bottomTile).isBlocked() ||
-            world.getTile(rightTile, bottomTile).isBlocked()) return false;
+        if (world.isTileBlocked(leftTile,  topTile)    ||
+            world.isTileBlocked(rightTile, topTile)    ||
+            world.isTileBlocked(leftTile,  bottomTile) ||
+            world.isTileBlocked(rightTile, bottomTile)) return false;
 
         double inset = 2.0;
         double pLeft = checkX + inset, pTop = checkY + inset;
