@@ -5,15 +5,6 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Manages all door entries across all worlds.
- * Uses pixel-based player rect intersection — fires before structure
- * collision blocks movement, same pattern as before.
- *
- * To add a new house door:
- *   doors.add(new DoorEntry(WorldIndex.ALPHA_VILLAGE, doorTileX, doorTileY, TILE_SIZE,
- *                           WorldIndex.HOUSE_1, spawnTileX, spawnTileY));
- */
 public class DoorManager {
 
     private final GamePanel gp;
@@ -27,22 +18,12 @@ public class DoorManager {
     }
 
     private void registerDoors() {
-        // House 1 on Alpha Village — adjust doorTileX/Y to match your door texture position
-        // Use the HUD coordinate display to find the exact tile
         doors.add(new DoorEntry(
                 WorldIndex.HOMETOWN, 11, 16, tileSize,
-                WorldIndex.HOUSE_1,       25, 19
+                WorldIndex.HOUSE_1, 25, 19
         ));
-
-        // Add more doors here as you build them:
-        // doors.add(new DoorEntry(WorldIndex.BETA_CITY, doorTileX, doorTileY, tileSize,
-        //                         WorldIndex.HOUSE_2, spawnTileX, spawnTileY));
     }
 
-    /**
-     * Called from GamePanel update every frame (exploration state only).
-     * Checks the player's current pixel rect against all door regions.
-     */
     public void check() {
         int currentWorld = gp.getWorldIndex();
         Rectangle playerRect = getPlayerRect();
@@ -56,11 +37,6 @@ public class DoorManager {
         }
     }
 
-    /**
-     * Called from Player.canMoveTo() with the next-position rect BEFORE
-     * collision is resolved — allows door to fire even through structure walls.
-     * Returns true if a door was triggered.
-     */
     public boolean checkAt(Rectangle nextRect) {
         int currentWorld = gp.getWorldIndex();
 

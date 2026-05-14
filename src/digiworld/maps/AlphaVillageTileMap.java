@@ -21,7 +21,6 @@ public final class AlphaVillageTileMap {
             }
         }
 
-        // Mystic forest marker shape around one valid encounter bush.
         for (int y = TRACKED_BUSH_Y - 2; y <= TRACKED_BUSH_Y + 2; y++) {
             for (int x = TRACKED_BUSH_X - 2; x <= TRACKED_BUSH_X + 2; x++) {
                 boolean border = x == TRACKED_BUSH_X - 2 || x == TRACKED_BUSH_X + 2
@@ -31,7 +30,6 @@ public final class AlphaVillageTileMap {
         }
         map[TRACKED_BUSH_Y][TRACKED_BUSH_X] = TileMapPalette.GRASS_BUSH;
 
-        // Heart of the forest (large zone + central arena for Aldrich).
         int minX = HEART_CENTER_X - 8;
         int maxX = HEART_CENTER_X + 8;
         int minY = HEART_CENTER_Y - 6;
@@ -48,7 +46,6 @@ public final class AlphaVillageTileMap {
             }
         }
 
-        // Walkable paths.
         for (int x = 20; x >= TRACKED_BUSH_X; x--) {
             for (int w = -1; w <= 1; w++) {
                 map[19 + w][x] = TileMapPalette.GRASS2;
@@ -81,7 +78,6 @@ public final class AlphaVillageTileMap {
             }
         }
 
-        // Add house structure at tile 25,14
         world.addStructure(new Structure(25 * 32, 14 * 32, 64, 64, 32, 10, 10, "res/Structures/house_finalbot.png", "res/Structures/house_finalTop.png", 32));
     }
 }

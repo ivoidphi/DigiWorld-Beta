@@ -40,14 +40,21 @@ public class GameUiRenderer {
     }
 
     public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective, double objectiveAlpha, double objectiveCompleteAlpha, boolean hasGWatch, boolean scanActive) {
+        drawHud(g2d, current, interactionMenuOpen, hasNearbyNpc, interactionMessage, currentObjective, objectiveAlpha, objectiveCompleteAlpha, hasGWatch, scanActive, 1.0);
+    }
+
+    public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective, double objectiveAlpha, double objectiveCompleteAlpha, boolean hasGWatch, boolean scanActive, double bannerAlpha) {
         BufferedImage banner = getWorldBanner(current.getName());
-        if (banner != null) {
+        if (banner != null && bannerAlpha > 0.001) {
             int scaledW = (int) Math.round(banner.getWidth() * 1.45);
             int scaledH = (int) Math.round(banner.getHeight() * 1.45);
             int bannerX = (logicalWidth - scaledW) / 2;
             int bannerY = logicalHeight / 16;
+            Composite oldComposite = g2d.getComposite();
+            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) Math.max(0.0, Math.min(1.0, bannerAlpha))));
             drawImageShadow(g2d, banner, bannerX, bannerY, scaledW, scaledH, 3, 3, 0.45f);
             g2d.drawImage(banner, bannerX, bannerY, scaledW, scaledH, null);
+            g2d.setComposite(oldComposite);
         }
 
         int objectiveX = 14;
@@ -325,7 +332,7 @@ public class GameUiRenderer {
         }
     }
 
-    public void drawDialogueAboveNpc(Graphics2D g2d, Npc activeNpc, DialogueController dialogueController, Player player, Camera camera) {
+    public void drawDialogueAboveNpc(Graphics2D g2d, Npc activeNpc, DialogueController dialogueController, Player player, Camera camera, World currentWorld) {
         DialoguePage page = dialogueController.getCurrentPage();
         String currentSpeaker = page.getSpeaker();
         String typed = dialogueController.getVisibleText();
@@ -344,19 +351,9 @@ public class GameUiRenderer {
         }
         int boxHeight = 28 + visibleLines.length * lineHeight + footerHeight;
         boolean speakerIsPlayer = playerName.equalsIgnoreCase(currentSpeaker);
-        int anchorX = speakerIsPlayer
-                ? (int) player.getX() - camera.getX() + player.getSize() / 2
-                : (activeNpc != null
-                ? (int) activeNpc.getX() - camera.getX() + activeNpc.getSize() / 2
-                : (int) player.getX() - camera.getX() + player.getSize() / 2);
-        int anchorY = speakerIsPlayer
-                ? (int) player.getY() - camera.getY()
-                : (activeNpc != null
-                ? (int) activeNpc.getY() - camera.getY()
-                : (int) player.getY() - camera.getY());
-        int x = anchorX - boxWidth / 2;
-        int y = anchorY - boxHeight - 22;
-        x = Math.max(8, Math.min(logicalWidth - boxWidth - 8, x));
+        int bottomMargin = (int)(logicalHeight * 0.25);
+        int x = (logicalWidth - boxWidth) / 2;
+        int y = logicalHeight - bottomMargin - boxHeight;
         y = Math.max(8, y);
 
         g2d.setColor(new Color(0, 0, 0, 220));
@@ -439,7 +436,7 @@ public class GameUiRenderer {
         map.put("Hometown", loadBanner("res/ui/hometown.png"));
         map.put("World 2 - Alpha Village", loadBanner("res/ui/alpha-village.png"));
         map.put("World 3 - Beta City", loadBanner("res/ui/beta-city.png"));
-        map.put("World 4 - Collapse Zone", loadBanner("res/ui/the-collapse-of-beta-city.png"));
+        map.put("Corrupted Beta City", loadBanner("res/ui/the-collapse-of-beta-city.png"));
         return map;
     }
 

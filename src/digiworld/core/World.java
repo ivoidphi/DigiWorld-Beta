@@ -1,16 +1,12 @@
 package digiworld.core;
 
-import digiworld.app.*;
-import digiworld.battle.*;
-import digiworld.core.*;
-import digiworld.dialogue.*;
-import digiworld.ui.*;
-
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import javax.imageio.ImageIO;
 
@@ -20,12 +16,19 @@ public class World {
     private final Npc[] npcs;
     private final int spawnTileX;
     private final int spawnTileY;
+    private final List<Structure> structures = new ArrayList<>();
     private static final BufferedImage TILE_GRASS1 = loadTile("res/tiles/grass1.png");
     private static final BufferedImage TILE_GRASS2 = loadTile("res/tiles/grass2.png");
     private static final BufferedImage TILE_GRASS3 = loadTile("res/tiles/grass3.png");
     private static final BufferedImage TILE_GRASS_BUSH = loadTile("res/tiles/grassbush.png");
     private static final BufferedImage TILE_WATER = loadTile("res/tiles/water.png");
     private final double[][] windStreaks;
+    private final boolean corrupted;
+    private static final Random corruptionRandom = new Random();
+
+    public boolean isCorrupted() {
+        return corrupted;
+    }
 
     public World(
             String name,
@@ -37,6 +40,7 @@ public class World {
             Npc[] npcs
     ) {
         this.name = name;
+        this.corrupted = "Corrupted Beta City".equalsIgnoreCase(name);
         this.spawnTileX = spawnTileX;
         this.spawnTileY = spawnTileY;
         this.tiles = new TileType[height][width];
@@ -110,7 +114,6 @@ public class World {
         }
         }
 
-        // Smooth random blending between grass1 and grass2.
         for (int pass = 0; pass < 3; pass++) {
             double[][] next = new double[tiles.length][tiles[0].length];
             for (int y = 1; y < tiles.length - 1; y++) {
@@ -142,7 +145,6 @@ public class World {
             }
         }
 
-        // Sprinkle flower grass (grass3) as smooth, sparse patches for visual variation.
         double[][] flowerNoise = new double[tiles.length][tiles[0].length];
         for (int y = 1; y < tiles.length - 1; y++) {
             for (int x = 1; x < tiles[0].length - 1; x++) {
@@ -188,7 +190,6 @@ public class World {
             }
         }
 
-        // Cluster grassbush in random circular patches about 8x8.
         int area = getWidth() * getHeight();
         int clusterCount = Math.max(8, area / 1800);
         int radius = 4;
@@ -269,6 +270,33 @@ public class World {
         return false;
     }
 
+    public void addStructure(Structure s) {
+        structures.add(s);
+    }
+
+    public List<Structure> getStructures() {
+        return structures;
+    }
+
+    public void drawStructuresBefore(Graphics2D g2d, Camera camera, int playerBottom) {
+        for (Structure s : structures) {
+            if (s.wallStartY() > playerBottom) {
+                s.drawBase(g2d, camera);
+            }
+        }
+    }
+
+    public void drawStructuresAfter(Graphics2D g2d, Camera camera, int playerBottom) {
+        for (Structure s : structures) {
+            if (s.wallStartY() > playerBottom) {
+                s.drawRoof(g2d, camera);
+            } else {
+                s.drawBase(g2d, camera);
+                s.drawRoof(g2d, camera);
+            }
+        }
+    }
+
     public void renderTiles(Graphics2D g2d, Camera camera, int tileSize, int viewportWidth, int viewportHeight, double windTimeSeconds) {
         int startTileX = Math.max(0, camera.getX() / tileSize);
         int startTileY = Math.max(0, camera.getY() / tileSize);
@@ -285,11 +313,40 @@ public class World {
                     double phase = windTimeSeconds * 4.0 + x * 0.55 + y * 0.35;
                     drawX += (int) Math.round(Math.sin(phase) * 1.0);
                 }
+                if (corrupted) {
+                    double corruptionPhase = windTimeSeconds * 6.0 + x * 0.7 + y * 0.5;
+                    if (corruptionRandom.nextDouble() < 0.005) {
+                        drawX += corruptionRandom.nextInt(6) - 3;
+                        drawY += corruptionRandom.nextInt(6) - 3;
+                    }
+                    if (corruptionRandom.nextDouble() < 0.01) {
+                        g2d.setColor(new Color(255, 0, 255, 60));
+                        g2d.fillRect(drawX, drawY, tileSize, tileSize);
+                        return;
+                    }
+                    if (corruptionRandom.nextDouble() < 0.01) {
+                        g2d.setColor(new Color(0, 255, 255, 50));
+                        g2d.fillRect(drawX, drawY, tileSize, tileSize);
+                        return;
+                    }
+                    if (corruptionRandom.nextDouble() < 0.008) {
+                        g2d.setColor(new Color(255, 0, 0, 40));
+                        g2d.fillRect(drawX, drawY, tileSize, tileSize);
+                        return;
+                    }
+                }
                 if (tileImage != null) {
                     g2d.drawImage(tileImage, drawX, drawY, tileSize, tileSize, null);
                 } else {
                     g2d.setColor(tileType.getColor());
                     g2d.fillRect(drawX, drawY, tileSize, tileSize);
+                }
+                if (corrupted && ((x + y) % 7 == 0)) {
+                    int flash = (int) (Math.sin(windTimeSeconds * 8.0 + x + y) * 30 + 30);
+                    if (flash > 50) {
+                        g2d.setColor(new Color(flash - 50, 0, flash - 50, 40));
+                        g2d.fillRect(drawX, drawY, tileSize, tileSize);
+                    }
                 }
             }
         }
@@ -360,6 +417,14 @@ public class World {
         return npcs;
     }
 
+    public boolean containsNpc(Npc npc) {
+        if (npc == null) return false;
+        for (Npc n : npcs) {
+            if (n == npc) return true;
+        }
+        return false;
+    }
+
     public Npc getClosestNpcInRange(double worldX, double worldY, double maxDistance) {
         Npc closest = null;
         double best = maxDistance;
@@ -412,13 +477,13 @@ public class World {
         double worldWidth = widthTiles * tileSize;
         double worldHeight = heightTiles * tileSize;
         for (int i = 0; i < count; i++) {
-            streaks[i][0] = random.nextDouble() * worldWidth;               // x
-            streaks[i][1] = random.nextDouble() * worldHeight;              // y
-            streaks[i][2] = 16 + random.nextDouble() * 24;                  // len
-            streaks[i][3] = 22 + random.nextDouble() * 40;                  // speed px/s
-            streaks[i][4] = random.nextDouble() * Math.PI * 2.0;            // phase
-            streaks[i][5] = 1.0 + random.nextDouble() * 3.0;                // sway amplitude
-            streaks[i][6] = worldWidth;                                      // wrap width
+            streaks[i][0] = random.nextDouble() * worldWidth;
+            streaks[i][1] = random.nextDouble() * worldHeight;
+            streaks[i][2] = 16 + random.nextDouble() * 24;
+            streaks[i][3] = 22 + random.nextDouble() * 40;
+            streaks[i][4] = random.nextDouble() * Math.PI * 2.0;
+            streaks[i][5] = 1.0 + random.nextDouble() * 3.0;
+            streaks[i][6] = worldWidth;
         }
         return streaks;
     }

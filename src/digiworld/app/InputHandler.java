@@ -1,11 +1,5 @@
 package digiworld.app;
 
-import digiworld.app.*;
-import digiworld.battle.*;
-import digiworld.core.*;
-import digiworld.dialogue.*;
-import digiworld.ui.*;
-
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.HashSet;
