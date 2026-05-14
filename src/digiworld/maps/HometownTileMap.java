@@ -1,5 +1,6 @@
 package digiworld.maps;
 
+import digiworld.core.Structure;
 import digiworld.core.World;
 
 public final class HometownTileMap {
@@ -15,7 +16,6 @@ public final class HometownTileMap {
             }
         }
 
-        // Light variation stripes for readability.
         for (int y = 3; y < height - 3; y++) {
             for (int x = 3; x < width - 3; x++) {
                 if ((x + y) % 5 == 0) {
@@ -33,6 +33,6 @@ public final class HometownTileMap {
                 world.setTile(x, y, TileMapPalette.toTile(map[y][x]));
             }
         }
+        world.addStructure(new Structure(10 * 32, 14 * 32, 128, 96, 32, 10, 10, "res/Structures/house_finalbot.png", "res/Structures/house_finalTop.png", 32));
     }
 }
-

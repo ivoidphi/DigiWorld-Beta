@@ -1,11 +1,5 @@
 package digiworld.core;
 
-import digiworld.app.*;
-import digiworld.battle.*;
-import digiworld.core.*;
-import digiworld.dialogue.*;
-import digiworld.ui.*;
-
 import java.awt.Color;
 
 public enum TileType {

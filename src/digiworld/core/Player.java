@@ -1,138 +1,135 @@
 package digiworld.core;
 
-import digiworld.app.*;
-import digiworld.battle.*;
-import digiworld.core.*;
-import digiworld.dialogue.*;
-import digiworld.ui.*;
-
-import java.awt.Color;
-import java.awt.Graphics2D;
+import digiworld.app.InputHandler;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
 
 public class Player extends Entity {
-    private enum Facing {
-        FORWARD,
-        BACK,
-        LEFT,
-        RIGHT
-    }
+
+    private enum Facing { FORWARD, BACK, LEFT, RIGHT }
 
     private final InputHandler input;
     private final int tileSize;
-    private final double walkSpeedPixelsPerSecond;
-    private final double sprintSpeedPixelsPerSecond;
+    private final double speedPixelsPerSecond;
     private Facing facing;
+
     private final BufferedImage spriteForward;
     private final BufferedImage spriteBack;
     private final BufferedImage spriteLeft;
     private final BufferedImage spriteRight;
 
+    private DoorManager doorManager;
+
     public Player(double x, double y, int size, InputHandler input, int tileSize) {
         super(x, y, size, new Color(255, 209, 102));
-        this.input = input;
+        this.input  = input;
         this.tileSize = tileSize;
-        this.walkSpeedPixelsPerSecond = 105.0;
-        this.sprintSpeedPixelsPerSecond = 136.5;
+        this.speedPixelsPerSecond = 84.0;
         this.facing = Facing.FORWARD;
         this.spriteForward = loadSprite("res/characters/player/player-fw.png");
-        this.spriteBack = loadSprite("res/characters/player/player-b.png");
-        this.spriteLeft = loadSprite("res/characters/player/player-l.png");
-        this.spriteRight = loadSprite("res/characters/player/player-r.png");
+        this.spriteBack    = loadSprite("res/characters/player/player-b.png");
+        this.spriteLeft    = loadSprite("res/characters/player/player-l.png");
+        this.spriteRight   = loadSprite("res/characters/player/player-r.png");
+    }
+
+    public void setDoorManager(DoorManager dm) {
+        this.doorManager = dm;
     }
 
     @Override
     public void update(double deltaSeconds, World world) {
-        double moveX = 0;
-        double moveY = 0;
+        double moveX = 0, moveY = 0;
 
-        if (input.isPressed(java.awt.event.KeyEvent.VK_W) || input.isPressed(java.awt.event.KeyEvent.VK_UP)) {
-            moveY -= 1;
-        }
-        if (input.isPressed(java.awt.event.KeyEvent.VK_S) || input.isPressed(java.awt.event.KeyEvent.VK_DOWN)) {
-            moveY += 1;
-        }
-        if (input.isPressed(java.awt.event.KeyEvent.VK_A) || input.isPressed(java.awt.event.KeyEvent.VK_LEFT)) {
-            moveX -= 1;
-        }
-        if (input.isPressed(java.awt.event.KeyEvent.VK_D) || input.isPressed(java.awt.event.KeyEvent.VK_RIGHT)) {
-            moveX += 1;
-        }
+        if (input.isPressed(java.awt.event.KeyEvent.VK_W) || input.isPressed(java.awt.event.KeyEvent.VK_UP))    moveY -= 1;
+        if (input.isPressed(java.awt.event.KeyEvent.VK_S) || input.isPressed(java.awt.event.KeyEvent.VK_DOWN))  moveY += 1;
+        if (input.isPressed(java.awt.event.KeyEvent.VK_A) || input.isPressed(java.awt.event.KeyEvent.VK_LEFT))  moveX -= 1;
+        if (input.isPressed(java.awt.event.KeyEvent.VK_D) || input.isPressed(java.awt.event.KeyEvent.VK_RIGHT)) moveX += 1;
 
         if (moveX != 0 && moveY != 0) {
-            double invLength = 1.0 / Math.sqrt(2);
-            moveX *= invLength;
-            moveY *= invLength;
+            double inv = 1.0 / Math.sqrt(2);
+            moveX *= inv; moveY *= inv;
         }
+
         moving = moveX != 0 || moveY != 0;
         updateBobbing(deltaSeconds);
         updateFacing(moveX, moveY);
 
-        boolean sprinting = input.isPressed(java.awt.event.KeyEvent.VK_SHIFT);
-        double activeSpeed = sprinting ? sprintSpeedPixelsPerSecond : walkSpeedPixelsPerSecond;
-        double nextX = x + moveX * activeSpeed * deltaSeconds;
-        double nextY = y + moveY * activeSpeed * deltaSeconds;
+        double nextX = x + moveX * speedPixelsPerSecond * deltaSeconds;
+        double nextY = y + moveY * speedPixelsPerSecond * deltaSeconds;
 
-        if (canMoveTo(nextX, y, world)) {
-            x = nextX;
+        if (moving && doorManager != null) {
+            Rectangle nextRect = getRect(nextX, nextY);
+            if (doorManager.checkAt(nextRect)) return;
         }
-        if (canMoveTo(x, nextY, world)) {
-            y = nextY;
-        }
+
+        if (canMoveTo(nextX, y, world)) x = nextX;
+        if (canMoveTo(x, nextY, world)) y = nextY;
     }
 
     private boolean canMoveTo(double checkX, double checkY, World world) {
-        int leftTile = (int) checkX / tileSize;
-        int topTile = (int) checkY / tileSize;
-        int rightTile = ((int) checkX + size - 1) / tileSize;
+        int leftTile   = (int) checkX / tileSize;
+        int topTile    = (int) checkY / tileSize;
+        int rightTile  = ((int) checkX + size - 1) / tileSize;
         int bottomTile = ((int) checkY + size - 1) / tileSize;
 
-        boolean tileWalkable = !world.getTile(leftTile, topTile).isBlocked()
-                && !world.getTile(rightTile, topTile).isBlocked()
-                && !world.getTile(leftTile, bottomTile).isBlocked()
-                && !world.getTile(rightTile, bottomTile).isBlocked();
-        if (!tileWalkable) {
-            return false;
-        }
+        if (world.getTile(leftTile,  topTile).isBlocked()    ||
+            world.getTile(rightTile, topTile).isBlocked()    ||
+            world.getTile(leftTile,  bottomTile).isBlocked() ||
+            world.getTile(rightTile, bottomTile).isBlocked()) return false;
 
         double inset = 2.0;
-        double pLeft = checkX + inset;
-        double pTop = checkY + inset;
-        double pRight = checkX + size - inset;
-        double pBottom = checkY + size - inset;
-        double currentLeft = x + inset;
-        double currentTop = y + inset;
-        double currentRight = x + size - inset;
-        double currentBottom = y + size - inset;
+        double pLeft = checkX + inset, pTop = checkY + inset;
+        double pRight = checkX + size - inset, pBottom = checkY + size - inset;
+        double cLeft = x + inset, cTop = y + inset;
+        double cRight = x + size - inset, cBottom = y + size - inset;
+
         for (Npc npc : world.getNpcs()) {
-            double nLeft = npc.getX() + inset;
-            double nTop = npc.getY() + inset;
+            double nLeft = npc.getX() + inset, nTop = npc.getY() + inset;
             double nRight = npc.getX() + npc.getSize() - inset;
             double nBottom = npc.getY() + npc.getSize() - inset;
             boolean overlap = pLeft < nRight && pRight > nLeft && pTop < nBottom && pBottom > nTop;
             if (overlap) {
-                double nextOverlapArea = overlapArea(pLeft, pTop, pRight, pBottom, nLeft, nTop, nRight, nBottom);
-                boolean currentlyOverlapping = currentLeft < nRight && currentRight > nLeft && currentTop < nBottom && currentBottom > nTop;
-                if (currentlyOverlapping) {
-                    double currentOverlapArea = overlapArea(currentLeft, currentTop, currentRight, currentBottom, nLeft, nTop, nRight, nBottom);
-                    if (nextOverlapArea + 0.001 < currentOverlapArea) {
-                        continue;
-                    }
+                boolean curOverlap = cLeft < nRight && cRight > nLeft && cTop < nBottom && cBottom > nTop;
+                if (curOverlap) {
+                    double next = overlapArea(pLeft, pTop, pRight, pBottom, nLeft, nTop, nRight, nBottom);
+                    double cur  = overlapArea(cLeft, cTop, cRight, cBottom, nLeft, nTop, nRight, nBottom);
+                    if (next + 0.001 < cur) continue;
                 }
                 return false;
             }
         }
+
+        for (Structure s : world.getStructures()) {
+            Rectangle sr = s.getCollisionRect();
+            double sLeft = sr.x, sTop = sr.y;
+            double sRight = sr.x + sr.width, sBottom = sr.y + sr.height;
+            boolean overlap = pLeft < sRight && pRight > sLeft && pTop < sBottom && pBottom > sTop;
+            if (overlap) {
+                boolean curOverlap = cLeft < sRight && cRight > sLeft && cTop < sBottom && cBottom > sTop;
+                if (curOverlap) {
+                    double next = overlapArea(pLeft, pTop, pRight, pBottom, sLeft, sTop, sRight, sBottom);
+                    double cur  = overlapArea(cLeft, cTop, cRight, cBottom, sLeft, sTop, sRight, sBottom);
+                    if (next + 0.001 < cur) continue;
+                }
+                return false;
+            }
+        }
+
         return true;
     }
 
-    private double overlapArea(double aLeft, double aTop, double aRight, double aBottom,
-                               double bLeft, double bTop, double bRight, double bBottom) {
-        double overlapW = Math.max(0.0, Math.min(aRight, bRight) - Math.max(aLeft, bLeft));
-        double overlapH = Math.max(0.0, Math.min(aBottom, bBottom) - Math.max(aTop, bTop));
-        return overlapW * overlapH;
+    private Rectangle getRect(double px, double py) {
+        int inset = 2;
+        return new Rectangle((int) px + inset, (int) py + inset, size - inset * 2, size - inset * 2);
+    }
+
+    private double overlapArea(double aL, double aT, double aR, double aB,
+                               double bL, double bT, double bR, double bB) {
+        return Math.max(0, Math.min(aR, bR) - Math.max(aL, bL))
+             * Math.max(0, Math.min(aB, bB) - Math.max(aT, bT));
     }
 
     public void teleportToTile(int tileX, int tileY) {
@@ -141,43 +138,32 @@ public class Player extends Entity {
     }
 
     @Override
-    public void render(Graphics2D g2d, Camera camera) {
-        BufferedImage activeSprite = getActiveSprite();
+    public void render(Graphics2D g2, Camera camera) {
+        BufferedImage sprite = getActiveSprite();
         int drawX = (int) x - camera.getX();
         int drawY = (int) y - camera.getY() + getBobOffsetY();
-        renderShadow(g2d, camera);
-        if (activeSprite != null) {
-            g2d.drawImage(activeSprite, drawX, drawY, size, size, null);
-            return;
-        }
-        super.render(g2d, camera);
+        renderShadow(g2, camera);
+        if (sprite != null) g2.drawImage(sprite, drawX, drawY, size, size, null);
+        else super.render(g2, camera);
     }
 
     private void updateFacing(double moveX, double moveY) {
-        if (moveX == 0 && moveY == 0) {
-            return;
-        }
-        if (moveX != 0) {
-            facing = moveX > 0 ? Facing.RIGHT : Facing.LEFT;
-        } else {
-            facing = moveY > 0 ? Facing.FORWARD : Facing.BACK;
-        }
+        if (moveX == 0 && moveY == 0) return;
+        if (moveX != 0) facing = moveX > 0 ? Facing.RIGHT : Facing.LEFT;
+        else            facing = moveY > 0 ? Facing.FORWARD : Facing.BACK;
     }
 
     private BufferedImage getActiveSprite() {
         return switch (facing) {
             case FORWARD -> spriteForward;
-            case BACK -> spriteBack;
-            case LEFT -> spriteLeft;
-            case RIGHT -> spriteRight;
+            case BACK    -> spriteBack;
+            case LEFT    -> spriteLeft;
+            case RIGHT   -> spriteRight;
         };
     }
 
     private static BufferedImage loadSprite(String path) {
-        try {
-            return ImageIO.read(new File(path));
-        } catch (IOException e) {
-            return null;
-        }
+        try { return ImageIO.read(new File(path)); }
+        catch (IOException e) { return null; }
     }
 }

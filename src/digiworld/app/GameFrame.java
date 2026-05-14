@@ -1,11 +1,5 @@
 package digiworld.app;
 
-import digiworld.app.*;
-import digiworld.battle.*;
-import digiworld.core.*;
-import digiworld.dialogue.*;
-import digiworld.ui.*;
-
 import javax.swing.JFrame;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;

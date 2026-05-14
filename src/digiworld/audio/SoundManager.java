@@ -38,7 +38,7 @@ public class SoundManager {
         worldMusicByName.put("Hometown", "res/sounds/hometown-loop.wav");
         worldMusicByName.put("World 2 - Alpha Village", "res/sounds/alpha-village-loop.wav");
         worldMusicByName.put("World 3 - Beta City", "res/sounds/beta-city-loop.wav");
-        worldMusicByName.put("World 4 - Collapse Zone", "res/sounds/collapse-zone-loop.wav");
+        worldMusicByName.put("Corrupted Beta City", "res/sounds/collapse-zone-loop.wav");
         combatMusicPath = "res/sounds/combat-loop.wav";
 
         activeEffectClips = new ArrayList<>();
@@ -71,6 +71,10 @@ public class SoundManager {
     }
 
     public void playTeleportSound() {
+        playSoundEffect("res/sounds/teleport.wav");
+    }
+
+    public void playGlitchSound() {
         playSoundEffect("res/sounds/teleport.wav");
     }
 
