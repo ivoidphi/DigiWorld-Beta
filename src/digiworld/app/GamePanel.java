@@ -7,6 +7,7 @@ import digiworld.dialogue.*;
 import digiworld.maps.*;
 import digiworld.ui.*;
 
+import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -76,6 +77,7 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean pendingDialogueEndAction;
     private String currentObjective;
     private String nextObjective;
+
     private enum ObjectiveTransitionPhase {
         IDLE,
         COMPLETE_FADE_IN,
@@ -84,6 +86,7 @@ public class GamePanel extends JPanel implements Runnable {
         COMPLETE_FADE_OUT,
         NEXT_FADE_IN
     }
+
     private ObjectiveTransitionPhase objectiveTransitionPhase;
     private boolean objectiveTransitioning;
     private String queuedObjective;
@@ -105,6 +108,7 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean hasGWatch;
     private boolean hasMechDriver;
     private int beastCards;
+
     private static final class BushTile {
         final int x;
         final int y;
@@ -114,6 +118,7 @@ public class GamePanel extends JPanel implements Runnable {
             this.y = y;
         }
     }
+
     private final List<BushTile> validEncounterBushes;
     private int hiddenVineratopsTileX;
     private int hiddenVineratopsTileY;
@@ -191,7 +196,8 @@ public class GamePanel extends JPanel implements Runnable {
         inventory = new Inventory();
         random = new Random();
         worldIndex = 0;
-        player = new Player(worlds[0].getSpawnTileX() * TILE_SIZE, worlds[0].getSpawnTileY() * TILE_SIZE, TILE_SIZE, input, TILE_SIZE);
+        player = new Player(worlds[0].getSpawnTileX() * TILE_SIZE, worlds[0].getSpawnTileY() * TILE_SIZE, TILE_SIZE,
+                input, TILE_SIZE);
         frameBuffer = new BufferedImage(LOGICAL_WIDTH, LOGICAL_HEIGHT, BufferedImage.TYPE_INT_ARGB);
         interactionMessage = "";
         activeNpc = null;
@@ -202,11 +208,11 @@ public class GamePanel extends JPanel implements Runnable {
         seenNpcDialogues = new HashSet<>();
         windTimeSeconds = 0.0;
         particles = new ArrayList<>();
-        starterChoices = new String[]{
+        starterChoices = new String[] {
                 "Kyoflare", "Nokami", "Vineratops", "Voltchu", "Zyuugor",
                 "Pirrot", "Gekuma", "Shadefox", "Kingmantis", "All Mighty"
         };
-        enemyChoices = new String[]{
+        enemyChoices = new String[] {
                 "Kyoflare", "Nokami", "Vineratops", "Voltchu", "Zyuugor",
                 "Pirrot", "Gekuma", "Shadefox", "Kingmantis", "Woltrix", "All Mighty"
         };
@@ -288,6 +294,7 @@ public class GamePanel extends JPanel implements Runnable {
         teleportInProgress = false;
         teleportDoorProximity = 0.0;
         soundManager.playWorldMusic(worlds[worldIndex].getName());
+
     }
 
     public void startGame() {
@@ -376,7 +383,8 @@ public class GamePanel extends JPanel implements Runnable {
                     interactionMenuOpen = false;
                     activeNpc = null;
                 }
-                interactionMessage = vineratopsJustWon ? "Wild Vineratops defeated." : (bossArenaActive ? interactionMessage : msg);
+                interactionMessage = vineratopsJustWon ? "Wild Vineratops defeated."
+                        : (bossArenaActive ? interactionMessage : msg);
                 soundManager.playWorldMusic(current.getName());
             }
         } else if (gameState == GameState.INVENTORY) {
@@ -526,7 +534,8 @@ public class GamePanel extends JPanel implements Runnable {
             case IDLE -> {
                 objectiveTextAlpha = 1.0;
                 objectiveCompleteAlpha = 0.0;
-                if (!objectiveTransitioning && queuedObjective != null && !queuedObjective.isBlank() && !queuedObjective.equals(currentObjective)) {
+                if (!objectiveTransitioning && queuedObjective != null && !queuedObjective.isBlank()
+                        && !queuedObjective.equals(currentObjective)) {
                     String queued = queuedObjective;
                     queuedObjective = null;
                     startObjectiveTransition(queued);
@@ -645,60 +654,58 @@ public class GamePanel extends JPanel implements Runnable {
         if (worldName.contains("hometown")) {
             if (questManager.isStage(QuestManager.STAGE_GAME_START)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Professor Alfred", "Professor Alfred", "Professor Alfred", PLAYER_NAME},
-                        new String[]{
-                                "Hello and welcome Mr. gaming prodigy and 10-time world champion " + PLAYER_NAME + " to the gaming lab where you will be testing our new revolutionary game \"DigiWorld\".",
+                        new String[] { "Professor Alfred", "Professor Alfred", "Professor Alfred", PLAYER_NAME },
+                        new String[] {
+                                "Hello and welcome Mr. gaming prodigy and 10-time world champion " + PLAYER_NAME
+                                        + " to the gaming lab where you will be testing our new revolutionary game \"DigiWorld\".",
                                 "Oh, where are my manners!? I’m Professor Alfred, and I’m in charge of developing this game.",
                                 "You will be transported into a world full of creatures called \"Mecha Beasts\", fuse with them, create a bond and battle together.",
                                 "Thanks for the explanation, Professor, but may I know what is the reason the government funded to create this game?"
-                        }
-                );
-                startDialogue(script, "SET_OBJECTIVE:Talk to General Edrian|SET_FLAG:hasTalkedToProfessor|SET_NPC_STATE:profAlfredState:1");
+                        });
+                startDialogue(script,
+                        "SET_OBJECTIVE:Talk to General Edrian|SET_FLAG:hasTalkedToProfessor|SET_NPC_STATE:profAlfredState:1");
             } else if (questManager.isStage(QuestManager.STAGE_TALKED_PROF)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Professor Alfred"},
-                        new String[]{"Please speak with General Edrian first."}
-                );
+                        new String[] { "Professor Alfred" },
+                        new String[] { "Please speak with General Edrian first." });
                 startDialogue(script, null);
             } else if (questManager.isStage(QuestManager.STAGE_TALKED_GEN)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Professor Alfred", "Professor Alfred"},
-                        new String[]{
+                        new String[] { "Professor Alfred", "Professor Alfred" },
+                        new String[] {
                                 "Excellent! Now before we transport you, you will need this G-Watch, Mech-driver and Beast-Cards.",
                                 "Choose 3 out of these 10 Mecha Beasts:"
-                        }
-                );
+                        });
                 startDialogue(script, "WAIT_AND_OPEN_STARTER_SELECT|SET_NPC_STATE:profAlfredState:2");
             } else if (questManager.isStage(QuestManager.STAGE_SELECTED_STARTERS)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Professor Alfred"},
-                        new String[]{"The teleport door is ready. Step inside to enter DigiWorld."}
-                );
+                        new String[] { "Professor Alfred" },
+                        new String[] { "The teleport door is ready. Step inside to enter DigiWorld." });
                 startDialogue(script, null);
             } else if (questManager.isStage(QuestManager.STAGE_DEFEATED_ALDRICH)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{PLAYER_NAME, "Professor Alfred", PLAYER_NAME, "Professor Alfred"},
-                        new String[]{
+                        new String[] { PLAYER_NAME, "Professor Alfred", PLAYER_NAME, "Professor Alfred" },
+                        new String[] {
                                 "Professor! I'm back! Stage one is complete!",
-                                "Excellent work! Stage one is complete. And no bugs either. You handled yourself well, " + PLAYER_NAME + "!",
+                                "Excellent work! Stage one is complete. And no bugs either. You handled yourself well, "
+                                        + PLAYER_NAME + "!",
                                 "Don't act proud! You never told me the pain would feel real. I thought I was going to die!",
                                 "But you did not. That is the point. This game is meant to be lived, not just played. Now rest. Tomorrow, the next test awaits."
-                        }
-                );
+                        });
                 startDialogue(script, "SET_OBJECTIVE:Enter Beta City|SET_FLAG:labReturnDialogueDone");
             }
         } else if (worldName.contains("alpha")) {
             if (questManager.isStage(QuestManager.STAGE_TALKED_CHIEF_REI)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Professor Alfred"},
-                        new String[]{"Use your G-Watch to locate Wild Vineratops. Defeat it, then proceed to the heart of the Mystic Forest."}
-                );
+                        new String[] { "Professor Alfred" },
+                        new String[] {
+                                "Use your G-Watch to locate Wild Vineratops. Defeat it, then proceed to the heart of the Mystic Forest." });
                 startDialogue(script, null);
             } else {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Professor Alfred"},
-                        new String[]{"Welcome to the beta test. Follow your G-Watch route to the Alpha Beast. You may feel pain in DigiWorld, but you will not die."}
-                );
+                        new String[] { "Professor Alfred" },
+                        new String[] {
+                                "Welcome to the beta test. Follow your G-Watch route to the Alpha Beast. You may feel pain in DigiWorld, but you will not die." });
                 startDialogue(script, null);
             }
         }
@@ -714,22 +721,22 @@ public class GamePanel extends JPanel implements Runnable {
             }
             if (genEdState == 0 && questManager.isStage(QuestManager.STAGE_TALKED_PROF)) {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"General Edrian", "General Edrian", "General Edrian", "General Edrian", "General Edrian", PLAYER_NAME},
-                        new String[]{
+                        new String[] { "General Edrian", "General Edrian", "General Edrian", "General Edrian",
+                                "General Edrian", PLAYER_NAME },
+                        new String[] {
                                 "I shall be the one to answer that question player, I was actually intrigued by gaming.",
                                 "Seeing players think like they’re chess masters or generals and coordinate their upper body in tapping their devices to win, it gave me an idea.",
                                 "What if we create a game where you become the character and fight but in a digital world?",
                                 "This way gamers could play digital games while still being physically active, and they will be able to experience the feeling of being their character.",
                                 "This could create a new legacy for \"Gamers\".",
                                 "That doesn't fully answer my question but oh well. Let's get this started."
-                        }
-                );
-                startDialogue(script, "SET_OBJECTIVE:Return to Professor Alfred|SET_FLAG:hasTalkedToGeneral|SET_NPC_STATE:genEdState:1");
+                        });
+                startDialogue(script,
+                        "SET_OBJECTIVE:Return to Professor Alfred|SET_FLAG:hasTalkedToGeneral|SET_NPC_STATE:genEdState:1");
             } else {
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"General Edrian"},
-                        new String[]{"Good luck out there, " + PLAYER_NAME + "."}
-                );
+                        new String[] { "General Edrian" },
+                        new String[] { "Good luck out there, " + PLAYER_NAME + "." });
                 startDialogue(script, null);
             }
         }
@@ -744,22 +751,21 @@ public class GamePanel extends JPanel implements Runnable {
         }
         if (chiefReiState == 0 && questManager.isStage(QuestManager.STAGE_ENTERED_DIGIWORLD)) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Chief Rei", PLAYER_NAME, "Chief Rei", PLAYER_NAME, "Chief Rei", PLAYER_NAME},
-                    new String[]{
+                    new String[] { "Chief Rei", PLAYER_NAME, "Chief Rei", PLAYER_NAME, "Chief Rei", PLAYER_NAME },
+                    new String[] {
                             "Welcome, traveler. I am Chief Rei, guardian of this village. What is it you seek?",
                             "I was told there is an Alpha Beast here.",
                             "That is true. But tell me… are you a challenger, or just another treasure hunter?",
                             "I… I guess I am a challenger.",
                             "Then follow the Mystic Forest. The path will test you before you reach the Alpha. Be prepared.",
                             "Thank you, Chief."
-                    }
-            );
-            startDialogue(script, "SET_OBJECTIVE:Locate the Wild Vineratops using your G-Watch|SET_FLAG:hasTalkedToChiefRei|SET_NPC_STATE:chiefReiState:1");
+                    });
+            startDialogue(script,
+                    "SET_OBJECTIVE:Locate the Wild Vineratops using your G-Watch|SET_FLAG:hasTalkedToChiefRei|SET_NPC_STATE:chiefReiState:1");
         } else {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Chief Rei"},
-                    new String[]{"Follow the Mystic Forest. Use your G-Watch and face the trial."}
-            );
+                    new String[] { "Chief Rei" },
+                    new String[] { "Follow the Mystic Forest. Use your G-Watch and face the trial." });
             startDialogue(script, null);
         }
     }
@@ -773,62 +779,63 @@ public class GamePanel extends JPanel implements Runnable {
         }
         if (aceJazzState == 0) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Ace Jazz"},
-                    new String[]{"I am the Ace Trainer Jazz. Battle me and win for only the strongest may pass! BEAST CARD ON! HENSHIN!"}
-            );
+                    new String[] { "Ace Jazz" },
+                    new String[] {
+                            "I am the Ace Trainer Jazz. Battle me and win for only the strongest may pass! BEAST CARD ON! HENSHIN!" });
             startDialogue(script, "START_BOSS:ace_jazz|SET_OBJECTIVE:Defeat Ace Jazz");
         } else if (aceJazzState == 1) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Ace Jazz"},
-                    new String[]{"You've surpassed us all. Take this Challenge Ticket, you've earned it. With it, you're worthy of the Tournament Trial."}
-            );
-            startDialogue(script, "GIVE_ITEM:challenge_ticket|SET_FLAG:hasChallengeTicket|SET_NPC_STATE:aceJazzState:2|SET_OBJECTIVE:Enter Tournament Trial");
+                    new String[] { "Ace Jazz" },
+                    new String[] {
+                            "You've surpassed us all. Take this Challenge Ticket, you've earned it. With it, you're worthy of the Tournament Trial." });
+            startDialogue(script,
+                    "GIVE_ITEM:challenge_ticket|SET_FLAG:hasChallengeTicket|SET_NPC_STATE:aceJazzState:2|SET_OBJECTIVE:Enter Tournament Trial");
         } else {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Ace Jazz"},
-                    new String[]{"The Tournament Trial awaits. Good luck."}
-            );
+                    new String[] { "Ace Jazz" },
+                    new String[] { "The Tournament Trial awaits. Good luck." });
             startDialogue(script, null);
         }
     }
 
     private void handleTrialmasterDialogue(Npc npc) {
         if (!inventory.hasItem("Challenge Ticket")) {
-            showNpcSpeechBubble(npc, "Scram. Go get the Challenge Ticket from Ace Jazz first, then maybe you’ll be worthy enough to face me.", 2.8);
+            showNpcSpeechBubble(npc,
+                    "Scram. Go get the Challenge Ticket from Ace Jazz first, then maybe you’ll be worthy enough to face me.",
+                    2.8);
             npc.endInteraction();
             activeNpc = null;
             return;
         }
         if (trialmasterState == 0) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Trialmaster", PLAYER_NAME, "Trialmaster", PLAYER_NAME, "Trialmaster"},
-                    new String[]{
+                    new String[] { "Trialmaster", PLAYER_NAME, "Trialmaster", PLAYER_NAME, "Trialmaster" },
+                    new String[] {
                             "Welcome, challenger! I am Trialmaster! Will you defeat me to qualify for the tournament, or start all over again?",
                             "Wait… Professor? Is that you? Are you also testing the game, or is this some NPC of you?",
                             "IIII… d-d-don’t know who this Professor you’re talking about!",
                             "Seriously!? You’re a bad liar.",
                             "Enough talk! Prove your strength first, then I’ll answer. BEAST CARD ON! HENSHIN!"
-                    }
-            );
+                    });
             startDialogue(script, "START_BOSS:trialmaster|SET_OBJECTIVE:Defeat Trialmaster");
         } else if (trialmasterState == 1) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Trialmaster", "Trialmaster", "Trialmaster", "Trialmaster", PLAYER_NAME, "Trialmaster"},
-                    new String[]{
+                    new String[] { "Trialmaster", "Trialmaster", "Trialmaster", "Trialmaster", PLAYER_NAME,
+                            "Trialmaster" },
+                    new String[] {
                             "You’ve beaten me… and qualified for the tournament!",
                             "And yes, I’m the Professor. In this game, I’m “Trialmaster.”",
                             "I transported in to personally monitor the test and ensure no glitches slip through.",
                             "I sense something bad is coming, and I had to see it for myself instead of just observing you.",
                             "But why would something bad happen? You’re a genius, you’ve planned everything for this game!",
                             "True, but there’s been tension between the staff and the General even before the beta started. Reasons I can’t share with you… for now. Let’s continue testing and see what unfolds."
-                    }
-            );
-            startDialogue(script, "SET_FLAG:trialCompleted|SET_NPC_STATE:trialmasterState:2|SET_OBJECTIVE:Wait for the Tournament to Begin");
+                    });
+            startDialogue(script,
+                    "SET_FLAG:trialCompleted|SET_NPC_STATE:trialmasterState:2|SET_OBJECTIVE:Wait for the Tournament to Begin");
         } else {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Trialmaster"},
-                    new String[]{"Wait for the Tournament to Begin."}
-            );
+                    new String[] { "Trialmaster" },
+                    new String[] { "Wait for the Tournament to Begin." });
             startDialogue(script, null);
         }
     }
@@ -842,28 +849,25 @@ public class GamePanel extends JPanel implements Runnable {
         }
         if (aldrichState == 0) {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Aldrich", "Player", "Aldrich"},
-                    new String[]{
+                    new String[] { "Aldrich", "Player", "Aldrich" },
+                    new String[] {
                             "Who dares step into my domain?",
                             "My name is " + PLAYER_NAME + ". I came to challenge you.",
                             "Then face me. I am Altair, the Alpha. And this is my partner, the Alpha Beast, Gekuma. BEAST CARD ON! HENSHIN!"
-                    }
-            );
+                    });
             startDialogue(script, "START_BOSS:aldrich|SET_OBJECTIVE:Defeat Aldrich");
         } else {
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Aldrich"},
-                    new String[]{"Come back when your bond with your beasts is stronger, fool."}
-            );
+                    new String[] { "Aldrich" },
+                    new String[] { "Come back when your bond with your beasts is stronger, fool." });
             startDialogue(script, null);
         }
     }
 
     private void handleShopkeeperDialogue(Npc npc) {
         DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Boss Rhonn"},
-                new String[]{"Welcome to my shop. Take a look at what I have."}
-        );
+                new String[] { "Boss Rhonn" },
+                new String[] { "Welcome to my shop. Take a look at what I have." });
         startDialogue(script, null);
     }
 
@@ -875,12 +879,11 @@ public class GamePanel extends JPanel implements Runnable {
             return;
         }
         DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Glitch", PLAYER_NAME},
-                new String[]{
+                new String[] { "Glitch", PLAYER_NAME },
+                new String[] {
                         "Call me Glitch. If you win, I stop. If I win, I want your autograph.",
                         "Let's do this then!"
-                }
-        );
+                });
         startDialogue(script, "START_BOSS:glitch|SET_OBJECTIVE:Defeat Glitch");
     }
 
@@ -1019,7 +1022,8 @@ public class GamePanel extends JPanel implements Runnable {
             }
         }
 
-        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE) || input.consumeJustPressed(KeyEvent.VK_E)) {
+        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)
+                || input.consumeJustPressed(KeyEvent.VK_E)) {
             if (dialogueController.advance()) {
                 endDialogue(false);
             }
@@ -1115,15 +1119,24 @@ public class GamePanel extends JPanel implements Runnable {
             starterSelectionIndex = (starterSelectionIndex + 1) % starterChoices.length;
             return;
         }
-        if (input.consumeJustPressed(KeyEvent.VK_1)) starterSelectionIndex = 0;
-        if (input.consumeJustPressed(KeyEvent.VK_2) && starterChoices.length > 1) starterSelectionIndex = 1;
-        if (input.consumeJustPressed(KeyEvent.VK_3) && starterChoices.length > 2) starterSelectionIndex = 2;
-        if (input.consumeJustPressed(KeyEvent.VK_4) && starterChoices.length > 3) starterSelectionIndex = 3;
-        if (input.consumeJustPressed(KeyEvent.VK_5) && starterChoices.length > 4) starterSelectionIndex = 4;
-        if (input.consumeJustPressed(KeyEvent.VK_6) && starterChoices.length > 5) starterSelectionIndex = 5;
-        if (input.consumeJustPressed(KeyEvent.VK_7) && starterChoices.length > 6) starterSelectionIndex = 6;
-        if (input.consumeJustPressed(KeyEvent.VK_8) && starterChoices.length > 7) starterSelectionIndex = 7;
-        if (input.consumeJustPressed(KeyEvent.VK_9) && starterChoices.length > 8) starterSelectionIndex = 8;
+        if (input.consumeJustPressed(KeyEvent.VK_1))
+            starterSelectionIndex = 0;
+        if (input.consumeJustPressed(KeyEvent.VK_2) && starterChoices.length > 1)
+            starterSelectionIndex = 1;
+        if (input.consumeJustPressed(KeyEvent.VK_3) && starterChoices.length > 2)
+            starterSelectionIndex = 2;
+        if (input.consumeJustPressed(KeyEvent.VK_4) && starterChoices.length > 3)
+            starterSelectionIndex = 3;
+        if (input.consumeJustPressed(KeyEvent.VK_5) && starterChoices.length > 4)
+            starterSelectionIndex = 4;
+        if (input.consumeJustPressed(KeyEvent.VK_6) && starterChoices.length > 5)
+            starterSelectionIndex = 5;
+        if (input.consumeJustPressed(KeyEvent.VK_7) && starterChoices.length > 6)
+            starterSelectionIndex = 6;
+        if (input.consumeJustPressed(KeyEvent.VK_8) && starterChoices.length > 7)
+            starterSelectionIndex = 7;
+        if (input.consumeJustPressed(KeyEvent.VK_9) && starterChoices.length > 8)
+            starterSelectionIndex = 8;
         if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
             if (selectedStarterIndices.contains(starterSelectionIndex)) {
                 selectedStarterIndices.remove(starterSelectionIndex);
@@ -1136,7 +1149,8 @@ public class GamePanel extends JPanel implements Runnable {
             }
             selectedStarterIndices.add(starterSelectionIndex);
             if (selectedStarterIndices.size() < 3) {
-                interactionMessage = starterChoices[starterSelectionIndex] + " selected (" + selectedStarterIndices.size() + "/3).";
+                interactionMessage = starterChoices[starterSelectionIndex] + " selected ("
+                        + selectedStarterIndices.size() + "/3).";
                 return;
             }
 
@@ -1168,8 +1182,9 @@ public class GamePanel extends JPanel implements Runnable {
             activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
         }
         DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Professor Alfred", "Professor Alfred", "Professor Alfred", "Professor Alfred", PLAYER_NAME, "Professor Alfred", PLAYER_NAME},
-                new String[]{
+                new String[] { "Professor Alfred", "Professor Alfred", "Professor Alfred", "Professor Alfred",
+                        PLAYER_NAME, "Professor Alfred", PLAYER_NAME },
+                new String[] {
                         "Welcome to the beta test. Your first mission is to reach Alpha Village and challenge the Alpha Beast.",
                         "Your G Watch has the map, so just follow the route.",
                         "Since this is still in beta, you might encounter bugs. Report them if you do.",
@@ -1177,8 +1192,7 @@ public class GamePanel extends JPanel implements Runnable {
                         "Wait… what? Pain? You didn’t say anything about that!",
                         "Good luck. The future of gaming and your legacy are in your hands.",
                         "Did he just cut me off? Ugh, fine. No turning back now."
-                }
-        );
+                });
         startDialogue(script, "SET_OBJECTIVE:Enter DigiWorld");
     }
 
@@ -1208,16 +1222,26 @@ public class GamePanel extends JPanel implements Runnable {
             enemySelectionIndex = (enemySelectionIndex + 1) % enemyChoices.length;
             return;
         }
-        if (input.consumeJustPressed(KeyEvent.VK_1)) enemySelectionIndex = 0;
-        if (input.consumeJustPressed(KeyEvent.VK_2) && enemyChoices.length > 1) enemySelectionIndex = 1;
-        if (input.consumeJustPressed(KeyEvent.VK_3) && enemyChoices.length > 2) enemySelectionIndex = 2;
-        if (input.consumeJustPressed(KeyEvent.VK_4) && enemyChoices.length > 3) enemySelectionIndex = 3;
-        if (input.consumeJustPressed(KeyEvent.VK_5) && enemyChoices.length > 4) enemySelectionIndex = 4;
-        if (input.consumeJustPressed(KeyEvent.VK_6) && enemyChoices.length > 5) enemySelectionIndex = 5;
-        if (input.consumeJustPressed(KeyEvent.VK_7) && enemyChoices.length > 6) enemySelectionIndex = 6;
-        if (input.consumeJustPressed(KeyEvent.VK_8) && enemyChoices.length > 7) enemySelectionIndex = 7;
-        if (input.consumeJustPressed(KeyEvent.VK_9) && enemyChoices.length > 8) enemySelectionIndex = 8;
-        if (input.consumeJustPressed(KeyEvent.VK_0) && enemyChoices.length > 9) enemySelectionIndex = 9;
+        if (input.consumeJustPressed(KeyEvent.VK_1))
+            enemySelectionIndex = 0;
+        if (input.consumeJustPressed(KeyEvent.VK_2) && enemyChoices.length > 1)
+            enemySelectionIndex = 1;
+        if (input.consumeJustPressed(KeyEvent.VK_3) && enemyChoices.length > 2)
+            enemySelectionIndex = 2;
+        if (input.consumeJustPressed(KeyEvent.VK_4) && enemyChoices.length > 3)
+            enemySelectionIndex = 3;
+        if (input.consumeJustPressed(KeyEvent.VK_5) && enemyChoices.length > 4)
+            enemySelectionIndex = 4;
+        if (input.consumeJustPressed(KeyEvent.VK_6) && enemyChoices.length > 5)
+            enemySelectionIndex = 5;
+        if (input.consumeJustPressed(KeyEvent.VK_7) && enemyChoices.length > 6)
+            enemySelectionIndex = 6;
+        if (input.consumeJustPressed(KeyEvent.VK_8) && enemyChoices.length > 7)
+            enemySelectionIndex = 7;
+        if (input.consumeJustPressed(KeyEvent.VK_9) && enemyChoices.length > 8)
+            enemySelectionIndex = 8;
+        if (input.consumeJustPressed(KeyEvent.VK_0) && enemyChoices.length > 9)
+            enemySelectionIndex = 9;
         if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
             if (!prepareBattlePartyFromInventory()) {
                 return;
@@ -1242,7 +1266,8 @@ public class GamePanel extends JPanel implements Runnable {
             inventory.moveSelection(1);
             return;
         }
-        if (input.consumeJustPressed(KeyEvent.VK_E) || input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+        if (input.consumeJustPressed(KeyEvent.VK_E) || input.consumeJustPressed(KeyEvent.VK_ENTER)
+                || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
             interactionMessage = inventory.toggleEquippedSelected();
         }
     }
@@ -1385,9 +1410,8 @@ public class GamePanel extends JPanel implements Runnable {
         alphaArrivalDialogueDone = true;
         movementLocked = true;
         DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Player"},
-                new String[]{"Hello? Anyone here?"}
-        );
+                new String[] { "Player" },
+                new String[] { "Hello? Anyone here?" });
         startDialogue(script, "SET_OBJECTIVE:Find Chief Rei");
         autoCloseDialogueWhenFinished = true;
         autoCloseDialogueTimer = 0.8;
@@ -1409,14 +1433,13 @@ public class GamePanel extends JPanel implements Runnable {
             activeNpc.beginInteractionFacing(player.getCenterX(), player.getCenterY());
         }
         DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Professor Alfred", "You", "Professor Alfred", "You"},
-                new String[]{
+                new String[] { "Professor Alfred", "You", "Professor Alfred", "You" },
+                new String[] {
                         "Excellent work. Stage one is complete. And no bugs either. You handled yourself well.",
                         "Don’t act proud! You never told me the pain would feel real. I thought I was going to die!",
                         "But you did not. That is the point. This game is meant to be lived, not just played. Now rest. Tomorrow, the next test awaits.",
                         "Tch…"
-                }
-        );
+                });
         startDialogue(script, "SET_OBJECTIVE:Talk to Chief Rei|MARK_LAB_RETURN_DONE");
     }
 
@@ -1424,8 +1447,9 @@ public class GamePanel extends JPanel implements Runnable {
         pendingStage1ReturnCutscene = false;
         movementLocked = true;
         DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Professor Alfred", "Player", "Professor Alfred", "Player", "Professor Alfred", "Player", "Professor Alfred"},
-                new String[]{
+                new String[] { "Professor Alfred", "Player", "Professor Alfred", "Player", "Professor Alfred", "Player",
+                        "Professor Alfred" },
+                new String[] {
                         "Excellent work. Stage one is complete. And no bugs either. You handled yourself well.",
                         "Don’t act proud! You never told me the pain would feel real. I thought I was going to die!",
                         "But you did not. That is the point. This game is meant to be lived, not just played. Now rest. Tomorrow, the next test awaits.",
@@ -1433,21 +1457,19 @@ public class GamePanel extends JPanel implements Runnable {
                         "Welcome back, Player. We’re about to begin the full test. Are you ready?",
                         "Yes… somewhat.",
                         "Alright then, transport!"
-                }
-        );
+                });
         startDialogue(script, "STAGE2_TRANSPORT_TO_BETA");
     }
 
     private void startBetaCityIntroDialogue() {
         movementLocked = true;
         DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Professor Alfred", "Professor Alfred", "Player"},
-                new String[]{
+                new String[] { "Professor Alfred", "Professor Alfred", "Player" },
+                new String[] {
                         "You are now in Beta City! Your goal: defeat the Ace Trainer to earn a Challenge Ticket for the Tournament Trial.",
                         "Head to the Tournament Hall to register. Good luck, and hopefully… everything goes smoothly.",
                         "Alright! Let’s go!"
-                }
-        );
+                });
         startDialogue(script, "SET_OBJECTIVE:Defeat Ace Trainer Jazz");
         pendingBetaIntroDialogue = false;
     }
@@ -1561,81 +1583,80 @@ public class GamePanel extends JPanel implements Runnable {
 
     private World[] createWorlds() {
         String aldrichBase = findAldrichSpriteBaseDir();
-        World[] built = new World[]{
-                new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{
+        World[] built = new World[] {
+                new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[] {
                         new Npc(
                                 "Professor Alfred",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(214, 93, 177),
-                                new int[][]{{24, 18}, {26, 18}, {26, 20}, {24, 20}},
+                                new int[][] { { 24, 18 }, { 26, 18 }, { 26, 20 }, { 24, 20 } },
                                 "res/characters/professor-alfred/profalfred-fw.png",
                                 "res/characters/professor-alfred/profalfred-b.png",
                                 "res/characters/professor-alfred/profalfred-l.png",
-                                "res/characters/professor-alfred/profalfred-r.png"
-                        ),
+                                "res/characters/professor-alfred/profalfred-r.png"),
                         new Npc(
                                 "General Edrian",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(245, 132, 92),
-                                new int[][]{{20, 17}, {18, 17}, {18, 20}, {20, 20}},
+                                new int[][] { { 20, 17 }, { 18, 17 }, { 18, 20 }, { 20, 20 } },
                                 "res/characters/gen-ed/gened-fw.png",
                                 "res/characters/gen-ed/gened-b.png",
                                 "res/characters/gen-ed/gened-l.png",
-                                "res/characters/gen-ed/gened-r.png"
-                        )
+                                "res/characters/gen-ed/gened-r.png")
                 }),
-                new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
+                new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[] {
                         new Npc(
                                 "Chief Rei",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(93, 177, 214),
-                                new int[][]{{26, 19}, {28, 19}, {28, 21}, {26, 21}},
+                                new int[][] { { 26, 19 }, { 28, 19 }, { 28, 21 }, { 26, 21 } },
                                 "res/characters/chief-rei/chiefrei-fw.png",
                                 "res/characters/chief-rei/chiefrei-b.png",
                                 "res/characters/chief-rei/chiefrei-l.png",
-                                "res/characters/chief-rei/chiefrei-r.png"
-                        ),
+                                "res/characters/chief-rei/chiefrei-r.png"),
                         new Npc(
                                 "Aldrich",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(200, 80, 80),
-                                new int[][]{{digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
-                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
-                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
-                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y}},
+                                new int[][] {
+                                        { digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X,
+                                                digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y },
+                                        { digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X,
+                                                digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y },
+                                        { digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X,
+                                                digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y },
+                                        { digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X,
+                                                digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y } },
                                 aldrichBase + "/aldrich-fw.png",
                                 aldrichBase + "/aldrich-b.png",
                                 aldrichBase + "/aldrich-l.png",
-                                aldrichBase + "/aldrich-r.png"
-                        )
+                                aldrichBase + "/aldrich-r.png")
                 }),
-                new World("World 3 - Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
+                new World("World 3 - Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[] {
                         new Npc(
                                 "Ace Jazz",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(230, 160, 75),
-                                new int[][]{{33, 26}, {33, 26}, {33, 26}, {33, 26}},
+                                new int[][] { { 33, 26 }, { 33, 26 }, { 33, 26 }, { 33, 26 } },
                                 "res/characters/ace-jazz/acejazz-fw.png",
                                 "res/characters/ace-jazz/acejazz-b.png",
                                 "res/characters/ace-jazz/acejazz-l.png",
-                                "res/characters/ace-jazz/acejazz-r.png"
-                        ),
+                                "res/characters/ace-jazz/acejazz-r.png"),
                         new Npc(
                                 "Trialmaster",
                                 TILE_SIZE,
                                 TILE_SIZE,
                                 new Color(180, 130, 214),
-                                new int[][]{{28, 12}, {28, 12}, {28, 12}, {28, 12}},
+                                new int[][] { { 28, 12 }, { 28, 12 }, { 28, 12 }, { 28, 12 } },
                                 "res/characters/trialmaster/trialmaster-fw.png",
                                 "res/characters/trialmaster/trialmaster-b.png",
                                 "res/characters/trialmaster/trialmaster-l.png",
-                                "res/characters/trialmaster/trialmaster-r.png"
-                        )
+                                "res/characters/trialmaster/trialmaster-r.png")
                 })
         };
         for (World world : built) {
@@ -1704,9 +1725,11 @@ public class GamePanel extends JPanel implements Runnable {
             if (gameState == GameState.INVENTORY) {
                 inventory.render(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
             } else if (gameState == GameState.STARTER_SELECT) {
-                drawRpgBeastSelection(scene, "Professor Alfred", "Choose 3 out of 10 Mecha Beasts", starterChoices, starterSelectionIndex);
+                drawRpgBeastSelection(scene, "Professor Alfred", "Choose 3 out of 10 Mecha Beasts", starterChoices,
+                        starterSelectionIndex);
             } else if (gameState == GameState.ENEMY_SELECT) {
-                drawRpgBeastSelection(scene, "Wild Bush Encounter", "Choose which beast to fight", enemyChoices, enemySelectionIndex);
+                drawRpgBeastSelection(scene, "Wild Bush Encounter", "Choose which beast to fight", enemyChoices,
+                        enemySelectionIndex);
             }
         }
         scene.dispose();
@@ -1753,8 +1776,7 @@ public class GamePanel extends JPanel implements Runnable {
                 objectiveTextAlpha,
                 objectiveCompleteAlpha,
                 hasGWatch,
-                scanUiFlashTimer > 0.0
-        );
+                scanUiFlashTimer > 0.0);
     }
 
     private void spawnMovementParticles(World world, double beforeX, double beforeY) {
@@ -1783,10 +1805,12 @@ public class GamePanel extends JPanel implements Runnable {
                 double py = player.getCenterY() + emitDirY * (player.getSize() * 0.38) - 6;
                 spawnLeafParticle(px, py, emitDirX, emitDirY);
                 if (random.nextDouble() < 0.5) {
-                    spawnLeafParticle(px + random.nextDouble() * 6 - 3, py + random.nextDouble() * 4 - 2, emitDirX, emitDirY);
+                    spawnLeafParticle(px + random.nextDouble() * 6 - 3, py + random.nextDouble() * 4 - 2, emitDirX,
+                            emitDirY);
                 }
             }
-        } else if (standingTile == TileType.GRASS1 || standingTile == TileType.GRASS2 || standingTile == TileType.GRASS3) {
+        } else if (standingTile == TileType.GRASS1 || standingTile == TileType.GRASS2
+                || standingTile == TileType.GRASS3) {
             if (random.nextDouble() < 0.55) {
                 double footY = player.getY() + player.getSize() - 2;
                 spawnFootParticle(player.getX() + 8 + random.nextDouble() * 6, footY);
@@ -1805,8 +1829,7 @@ public class GamePanel extends JPanel implements Runnable {
                 0.32 + random.nextDouble() * 0.22,
                 new Color(118, 204, 92, 210),
                 3 + random.nextInt(3),
-                false
-        ));
+                false));
     }
 
     private void spawnFootParticle(double x, double y) {
@@ -1817,8 +1840,7 @@ public class GamePanel extends JPanel implements Runnable {
                 0.22 + random.nextDouble() * 0.18,
                 new Color(95, 185, 76, 185),
                 2 + random.nextInt(2),
-                true
-        ));
+                true));
     }
 
     private void addParticle(Particle p) {
@@ -1873,7 +1895,8 @@ public class GamePanel extends JPanel implements Runnable {
         private final int size;
         private final boolean behindPlayer;
 
-        private Particle(double x, double y, double vx, double vy, double life, Color color, int size, boolean behindPlayer) {
+        private Particle(double x, double y, double vx, double vy, double life, Color color, int size,
+                boolean behindPlayer) {
             this.x = x;
             this.y = y;
             this.vx = vx;
@@ -1923,8 +1946,7 @@ public class GamePanel extends JPanel implements Runnable {
                 canGoNextWorld(),
                 canGoPreviousWorld(),
                 activeNpc != null && hasDialogue(activeNpc),
-                hasSeenDialogue(activeNpc)
-        );
+                hasSeenDialogue(activeNpc));
     }
 
     private boolean canTeleportNext(Npc npc, World world) {
@@ -2013,11 +2035,10 @@ public class GamePanel extends JPanel implements Runnable {
             questManager.setQuestStage(QuestManager.STAGE_DEFEATED_ALDRICH);
             interactionMessage = "Teleportation instability detected...";
             DialogueSequence script = DialogueFactory.createSequence(
-                    new String[]{"Aldrich"},
-                    new String[]{
+                    new String[] { "Aldrich" },
+                    new String[] {
                             "What a strange challenger…"
-                    }
-            );
+                    });
             startDialogue(script, "TELEPORT_TO_LAB_STAGE1");
         } else if (currentBossWorldIndex == 2) {
             trialCompleted = true;
@@ -2025,9 +2046,9 @@ public class GamePanel extends JPanel implements Runnable {
                 questManager.setQuestStage(QuestManager.STAGE_ENTERED_BETA_CITY); // stage 9
                 inventory.addItem("Challenge Ticket");
                 DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Ace Jazz"},
-                        new String[]{"You’ve surpassed us all. Take this Challenge Ticket, you’ve earned it. With it, you’re worthy of the Tournament Trial."}
-                );
+                        new String[] { "Ace Jazz" },
+                        new String[] {
+                                "You’ve surpassed us all. Take this Challenge Ticket, you’ve earned it. With it, you’re worthy of the Tournament Trial." });
                 startDialogue(script, "SET_OBJECTIVE:Go to the Tournament Hall");
             } else {
                 questManager.setQuestStage(QuestManager.STAGE_DEFEATED_ACE_JAZZ); // stage 10
@@ -2169,8 +2190,10 @@ public class GamePanel extends JPanel implements Runnable {
         return pool.get(random.nextInt(pool.size()));
     }
 
-    private void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices, int selectedIndex) {
-        uiRenderer.drawRpgBeastSelection(g2d, title, subtitle, choices, selectedIndex, selectedStarterIndices, gameState);
+    private void drawRpgBeastSelection(Graphics2D g2d, String title, String subtitle, String[] choices,
+            int selectedIndex) {
+        uiRenderer.drawRpgBeastSelection(g2d, title, subtitle, choices, selectedIndex, selectedStarterIndices,
+                gameState);
     }
 
     private void drawDialogueAboveNpc(Graphics2D g2d) {
@@ -2247,7 +2270,8 @@ public class GamePanel extends JPanel implements Runnable {
         }
         rebuildValidEncounterBushes(current);
         if (validEncounterBushes.isEmpty()) {
-            return new BushTile(digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_X, digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_Y);
+            return new BushTile(digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_X,
+                    digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_Y);
         }
         return validEncounterBushes.get(0);
     }
@@ -2258,7 +2282,8 @@ public class GamePanel extends JPanel implements Runnable {
             return;
         }
         WorldTileMapRegistry.apply(current);
-        validEncounterBushes.add(new BushTile(digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_X, digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_Y));
+        validEncounterBushes.add(new BushTile(digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_X,
+                digiworld.maps.AlphaVillageTileMap.TRACKED_BUSH_Y));
     }
 
     private void updateScanMarker(double deltaSeconds) {
@@ -2278,7 +2303,8 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void drawScanMarker(Graphics2D g2d) {
-        if (!scanMarkerVisible || !hiddenVineratopsTargetActive || hiddenVineratopsTileX < 0 || hiddenVineratopsTileY < 0) {
+        if (!scanMarkerVisible || !hiddenVineratopsTargetActive || hiddenVineratopsTileX < 0
+                || hiddenVineratopsTileY < 0) {
             return;
         }
         int px = hiddenVineratopsTileX * TILE_SIZE + TILE_SIZE / 2 - camera.getX();

@@ -2,16 +2,15 @@ package digiworld.app;
 
 import digiworld.audio.SoundManager;
 import java.awt.BasicStroke;
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -37,7 +36,7 @@ public class ScreenTitle extends JFrame {
 
         ImageIcon gifIcon = new ImageIcon(GIF_NAME);
         StretchLabel background = new StretchLabel(gifIcon);
-        background.setLayout(new GridBagLayout());
+        background.setLayout(new java.awt.GridBagLayout());
 
         MenuButton playButton = new MenuButton("PLAY");
         MenuButton creditsButton = new MenuButton("CREDITS");
@@ -51,24 +50,51 @@ public class ScreenTitle extends JFrame {
             SoundManager.getInstance().playWorldMusic("Hometown");
         });
 
-        creditsButton.addActionListener(e -> javax.swing.JOptionPane.showMessageDialog(
-                this,
-                "DIGIWORLD BETA",
-                "Credits",
-                javax.swing.JOptionPane.INFORMATION_MESSAGE
-        ));
+        creditsButton.addActionListener(e -> {
+            JFrame creditsFrame = new JFrame("Credits");
+            creditsFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            creditsFrame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+            creditsFrame.setUndecorated(true);
+
+            ImageIcon creditsIcon = new ImageIcon("res/ui/credits.gif");
+            StretchLabel creditsLabel = new StretchLabel(creditsIcon);
+
+            JButton backButton = new JButton("BACK");
+            backButton.setFont(new Font("Arial", Font.BOLD, 30));
+            backButton.setForeground(Color.WHITE);
+            backButton.setBackground(new Color(0, 0, 0, 160));
+            backButton.setBorderPainted(false);
+            backButton.setFocusPainted(false);
+            backButton.addActionListener(ev -> {
+                creditsFrame.dispose();
+                this.setVisible(true);
+            });
+
+            JPanel backPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            backPanel.setOpaque(false);
+            backPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 220, 0, 0));
+            backPanel.add(backButton);
+
+            creditsLabel.setLayout(new BorderLayout());
+            creditsLabel.add(backPanel, BorderLayout.SOUTH);
+
+            creditsFrame.setContentPane(creditsLabel);
+            creditsFrame.setVisible(true);
+
+            this.setVisible(false);
+        });
 
         exitButton.addActionListener(e -> {
             SoundManager.getInstance().stopMusic();
             System.exit(0);
         });
 
-        JPanel menuPanel = new JPanel(new GridBagLayout());
+        JPanel menuPanel = new JPanel(new java.awt.GridBagLayout());
         menuPanel.setOpaque(false);
-        GridBagConstraints gbc = new GridBagConstraints();
+        java.awt.GridBagConstraints gbc = new java.awt.GridBagConstraints();
         gbc.gridx = 0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(10, 0, 10, 0);
+        gbc.fill = java.awt.GridBagConstraints.HORIZONTAL;
+        gbc.insets = new java.awt.Insets(10, 0, 10, 0);
 
         gbc.gridy = 0;
         menuPanel.add(playButton, gbc);
