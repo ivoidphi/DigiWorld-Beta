@@ -2,11 +2,9 @@ package digiworld.battle;
 
 import digiworld.app.*;
 import digiworld.audio.SoundManager;
-import digiworld.battle.*;
 import digiworld.core.*;
 import digiworld.dialogue.*;
 import digiworld.ui.*;
-
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
@@ -42,7 +40,7 @@ public class BattleSystem {
     private static final double OUTRO_DURATION_SECONDS = 0.75;
     private static final double RESULT_DURATION_SECONDS = 1.8;
     private static final double HIT_ANIM_DURATION_SECONDS = 0.35;
-    private static final int TEMP_RUN_SUCCESS_RATE_PERCENT = 100; // TEMP: set back to formula-based chance later
+    private static final int TEMP_RUN_SUCCESS_RATE_PERCENT = 100;
 
     private static final int COMMAND_BOX_HEIGHT = 154;
     private static final int COMMAND_BOX_SIDE_MARGIN = 16;
@@ -83,6 +81,7 @@ public class BattleSystem {
     private int switchSelectionIndex;
     private boolean[] ownedPlayerCreatures;
     private boolean openingBeastChoiceRequired;
+    private boolean forceSwitchChoiceRequired;
     private String lastResolvedEnemyName;
     private boolean lastBattleWon;
 
@@ -117,6 +116,7 @@ public class BattleSystem {
             ownedPlayerCreatures[i] = true;
         }
         openingBeastChoiceRequired = false;
+        forceSwitchChoiceRequired = false;
         lastResolvedEnemyName = "";
         lastBattleWon = false;
     }
@@ -127,14 +127,11 @@ public class BattleSystem {
 
     public void startWildBattle(String enemyBeastName) {
         enemyCreature = createWildByName(enemyBeastName);
-        enemyBattleSprite = getBattleSpriteForCreature(enemyCreature.getName());
-        enemyBattleSpriteHit = getHitSpriteForCreature(enemyCreature.getName());
+        enemyBattleSprite = getBattleSpriteForCreature(enemyCreature.getName(), false);
+        enemyBattleSpriteHit = getHitSpriteForCreature(enemyCreature.getName(), false);
         battleType = BattleType.WILD;
         for (int i = 0; i < playerMoveCooldowns.length; i++) {
             playerMoveCooldowns[i] = 0;
-        }
-        for (BattleCreature creature : playerCreatures) {
-            creature.healToFull();
         }
         active = true;
         scenePhase = ScenePhase.INTRO;
@@ -148,11 +145,25 @@ public class BattleSystem {
         pendingResultMessage = "";
         pendingCaughtCreatureName = null;
         openingBeastChoiceRequired = true;
+        forceSwitchChoiceRequired = false;
         playerMenuMode = PlayerMenuMode.SWITCH_SELECT;
-        switchSelectionIndex = Math.max(0, Math.min(playerCreatures.length - 1, activePlayerIndex));
+
+        switchSelectionIndex = 0;
+        for (int i = 0; i < playerCreatures.length; i++) {
+            if (ownedPlayerCreatures[i] && !playerCreatures[i].isFainted()) {
+                switchSelectionIndex = i;
+                break;
+            }
+        }
+
         message = "Choose your beast for this battle.";
         lastResolvedEnemyName = "";
         lastBattleWon = false;
+    }
+
+    public void startTrainerBattle(String enemyBeastName) {
+        startWildBattle(enemyBeastName);
+        battleType = BattleType.PLAYER;
     }
 
     public String consumeLastResolvedEnemyName() {
@@ -172,7 +183,7 @@ public class BattleSystem {
     }
 
     public BufferedImage getCreatureSprite(String creatureName) {
-        return getBattleSpriteForCreature(creatureName);
+        return getBattleSpriteForCreature(creatureName, false);
     }
 
     public void setStarterBeast(String beastName) {
@@ -198,7 +209,7 @@ public class BattleSystem {
         for (int i = 0; i < partySize; i++) {
             String name = beastNames[i] == null || beastNames[i].isBlank() ? "Nokami" : beastNames[i].trim();
             newCreatures[i] = BeastCatalog.createCreature(name);
-            newSprites[i] = getBattleSpriteForCreature(name);
+            newSprites[i] = getBattleSpriteForCreature(name, true);
             newHitSprites[i] = createRedTintedSprite(newSprites[i]);
         }
         playerCreatures = newCreatures;
@@ -209,6 +220,28 @@ public class BattleSystem {
         Arrays.fill(ownedPlayerCreatures, true);
         switchButtons = new Rectangle[partySize];
         refreshActiveMoves();
+    }
+
+    public void setPlayerCreatures(BattleCreature[] creatures) {
+        if (creatures == null || creatures.length == 0) return;
+        this.playerCreatures = creatures;
+        this.playerBattleSprites = new BufferedImage[creatures.length];
+        this.playerBattleSpritesHit = new BufferedImage[creatures.length];
+        this.ownedPlayerCreatures = new boolean[creatures.length];
+        this.switchButtons = new Rectangle[creatures.length];
+
+        for (int i = 0; i < creatures.length; i++) {
+            this.ownedPlayerCreatures[i] = true;
+            String name = creatures[i].getName();
+            this.playerBattleSprites[i] = getBattleSpriteForCreature(name, true);
+            this.playerBattleSpritesHit[i] = createRedTintedSprite(this.playerBattleSprites[i]);
+        }
+        this.activePlayerIndex = 0;
+        refreshActiveMoves();
+    }
+
+    public BattleCreature[] getPlayerCreatures() {
+        return this.playerCreatures;
     }
 
     public void setOwnedBeasts(Set<String> ownedBeasts) {
@@ -278,7 +311,7 @@ public class BattleSystem {
             return "none";
         }
         if (playerMenuMode == PlayerMenuMode.SWITCH_SELECT) {
-            if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
+            if (input.consumeJustPressed(KeyEvent.VK_ESCAPE) && !getActivePlayerCreature().isFainted() && !openingBeastChoiceRequired && !forceSwitchChoiceRequired) {
                 playerMenuMode = PlayerMenuMode.COMMAND;
                 message = "Choose an action.";
                 return "continue";
@@ -378,8 +411,10 @@ public class BattleSystem {
                     enemyTurn();
                 } else {
                     turnPhase = TurnPhase.PLAYER_TURN;
-                    getActivePlayerCreature().recoverEnergy(getActivePlayerCreature().getEnergyRegen());
-                    message = "Your turn. Choose an action.";
+                    if (!getActivePlayerCreature().isFainted()) {
+                        getActivePlayerCreature().recoverEnergy(getActivePlayerCreature().getEnergyRegen());
+                        message = "Your turn. Choose an action.";
+                    }
                 }
             }
         }
@@ -425,20 +460,23 @@ public class BattleSystem {
         int playerShakeY = getShakeOffset(playerHitTimer);
         int enemyShakeY = getShakeOffset(enemyHitTimer);
         drawBattleCharacter(g2d, getActivePlayerSprite(), playerX, playerY + playerShakeY, spriteSize, spriteSize,
-                playerHitTimer > 0, new Color(255, 209, 102));
+                playerHitTimer > 0, new Color(255, 209, 102), true);
         drawBattleCharacter(g2d, enemyBattleSprite, enemyX, enemyY + enemyShakeY, spriteSize, spriteSize,
-                enemyHitTimer > 0, new Color(220, 120, 155));
+                enemyHitTimer > 0, new Color(220, 120, 155), false);
 
         g2d.setFont(UIFont.regular(12f));
-        int panelWidth = Math.max(260, Math.min(360, screenWidth / 4));
-        int panelHeight = 92;
-        int enemyPanelX = clamp(enemyX + (spriteSize - panelWidth) / 2, 24, screenWidth - panelWidth - 24);
-        int enemyPanelY = Math.max(24, enemyY - panelHeight - 12);
-        drawStatusPanel(g2d, enemyPanelX, enemyPanelY, panelWidth, panelHeight, enemyCreature, true);
 
-        int playerPanelX = clamp(playerX + (spriteSize - panelWidth) / 2, 24, screenWidth - panelWidth - 24);
-        int playerPanelY = Math.min(battleBottom - panelHeight, playerY + spriteSize + 18);
-        drawStatusPanel(g2d, playerPanelX, playerPanelY, panelWidth, panelHeight, getActivePlayerCreature(), true);
+        int panelWidth = 220;
+
+        int enemyPanelH = 56;
+        int enemyPanelX = 40;
+        int enemyPanelY = 40;
+        drawStatusPanel(g2d, enemyPanelX, enemyPanelY, panelWidth, enemyPanelH, enemyCreature, false);
+
+        int playerPanelH = 74;
+        int playerPanelX = screenWidth - panelWidth - 40;
+        int playerPanelY = battleBottom - playerPanelH - 12;
+        drawStatusPanel(g2d, playerPanelX, playerPanelY, panelWidth, playerPanelH, getActivePlayerCreature(), true);
 
         int commandBoxX = COMMAND_BOX_SIDE_MARGIN;
         int commandBoxW = screenWidth - COMMAND_BOX_SIDE_MARGIN * 2;
@@ -491,67 +529,93 @@ public class BattleSystem {
             message = "You do not own " + playerCreatures[index].getName() + ".";
             return;
         }
-        if (index == activePlayerIndex) {
-            if (openingBeastChoiceRequired) {
-                openingBeastChoiceRequired = false;
-                playerMenuMode = PlayerMenuMode.COMMAND;
-                message = "Your turn. Choose an action.";
-                return;
-            }
+        if (playerCreatures[index].isFainted()) {
+            message = playerCreatures[index].getName() + " has 0 HP and cannot battle!";
+            return;
+        }
+        if (index == activePlayerIndex && !openingBeastChoiceRequired && !forceSwitchChoiceRequired) {
             message = playerCreatures[index].getName() + " is already active.";
             return;
         }
+
         activePlayerIndex = index;
         refreshActiveMoves();
         BattleCreature playerCreature = getActivePlayerCreature();
         playerCreature.recoverEnergy(playerCreature.getEnergyRegen());
         playerMenuMode = PlayerMenuMode.COMMAND;
+
         if (openingBeastChoiceRequired) {
             openingBeastChoiceRequired = false;
             message = "Sent out " + playerCreature.getName() + ". Your turn.";
             return;
         }
+
+        if (forceSwitchChoiceRequired) {
+            forceSwitchChoiceRequired = false;
+            message = "Sent out " + playerCreature.getName() + ". Your turn.";
+            return;
+        }
+
         message = "Switched to " + playerCreature.getName() + ".";
+
+        tickCooldowns();
         beginEnemyThinking();
     }
 
     private void useMove(int moveIndex) {
         BattleCreature playerCreature = getActivePlayerCreature();
-        refreshActiveMoves();
         BattleMove move = playerMoves[moveIndex];
+
         if (playerMoveCooldowns[moveIndex] > 0) {
-            message = move.getName() + " is cooling down (" + playerMoveCooldowns[moveIndex] + " turn).";
-            return;
-        }
-        if (!playerCreature.spendEnergy(move.getEnergyCost())) {
-            message = "Not enough energy for " + move.getName() + ".";
+            message = move.getName() + " is cooling down! Turn skipped.";
+            tickCooldowns();
+            beginEnemyThinking();
             return;
         }
         if (playerCreature.getStatusEffect() == StatusEffect.FEAR) {
             message = "Fear stops your attack this turn.";
             playerCreature.tickStatus();
+            tickCooldowns();
             beginEnemyThinking();
             return;
         }
         if (playerCreature.getStatusEffect() == StatusEffect.PARALYZE && random.nextDouble() < 0.5) {
             message = "Paralyzed! You could not move.";
             playerCreature.tickStatus();
+            tickCooldowns();
             beginEnemyThinking();
             return;
         }
 
-        if (soundManager != null) {
-            soundManager.playSkillSoundForBeast(playerCreature.getName());
+        if (!playerCreature.spendEnergy(move.getEnergyCost())) {
+            message = "Not enough energy for " + move.getName() + ".";
+            return;
         }
-        int damage = computeDamage(playerCreature, enemyCreature, move.getPower(), move.getType(), move);
-        enemyCreature.takeDamage(damage);
-        enemyHitTimer = HIT_ANIM_DURATION_SECONDS;
+
+        tickCooldowns();
         playerMoveCooldowns[moveIndex] = move.getCooldownTurns();
+
         if (soundManager != null) {
             soundManager.playSkillSoundForBeast(playerCreature.getName());
         }
 
-        StringBuilder turnMsg = new StringBuilder("Used " + move.getName() + " for " + damage + " damage.");
+        int damage = computeDamage(playerCreature, enemyCreature, move.getPower(), move.getType(), move);
+        enemyCreature.takeDamage(damage);
+        enemyHitTimer = HIT_ANIM_DURATION_SECONDS;
+
+        if (soundManager != null) {
+            soundManager.playSkillSoundForBeast(playerCreature.getName());
+        }
+
+        double eff = typeEffectiveness(move.getType(), enemyCreature.getElement());
+        String effText = "";
+        if (eff > 1.0) {
+            effText = " Super Effective!";
+        } else if (eff < 1.0) {
+            effText = " Not Very Effective.";
+        }
+
+        StringBuilder turnMsg = new StringBuilder("Used " + move.getName() + " for " + damage + " DMG." + effText);
         if (move.getInflictEffect() != StatusEffect.NONE && random.nextDouble() < move.getEffectChance()) {
             enemyCreature.setStatus(move.getInflictEffect(), 2);
             turnMsg.append(" ").append(move.getInflictEffect().name()).append(" applied.");
@@ -561,23 +625,33 @@ public class BattleSystem {
 
         if (enemyCreature.isFainted()) {
             int expGain = expYieldForLevel(enemyCreature.getLevel());
-            boolean leveled = playerCreature.addExp(expGain);
-            String result = "You won the fight! +" + expGain + " EXP.";
-            if (leveled) {
-                result += " Level up! Lv " + playerCreature.getLevel() + ".";
+            boolean anyLeveled = false;
+
+            for (int i = 0; i < playerCreatures.length; i++) {
+                if (ownedPlayerCreatures[i] && playerCreatures[i] != null) {
+                    if (playerCreatures[i].addExp(expGain)) {
+                        anyLeveled = true;
+                    }
+                }
+            }
+
+            String result = "You won! All beasts gained +" + expGain + " EXP.";
+            if (anyLeveled) {
+                result += " Level up!";
             }
             lastResolvedEnemyName = enemyCreature != null ? enemyCreature.getName() : "";
             lastBattleWon = true;
             enterResult(result);
             return;
         }
+
         playerCreature.tickStatus();
         beginEnemyThinking();
     }
 
     private void runAttempt() {
         if (battleType == BattleType.PLAYER) {
-            message = "You cannot run from player battles.";
+            message = "You cannot run from trainer battles.";
             return;
         }
         int chance = TEMP_RUN_SUCCESS_RATE_PERCENT;
@@ -587,11 +661,16 @@ public class BattleSystem {
             enterResult("You ran away safely.");
         } else {
             message = "Run failed!";
+            tickCooldowns();
             beginEnemyThinking();
         }
     }
 
     private void catchAttempt() {
+        if (battleType == BattleType.PLAYER) {
+            message = "You cannot catch a trainer's Mecha Beast!";
+            return;
+        }
         if (enemyCreature.getHp() <= 0) {
             message = "Cannot catch at 0 HP.";
             return;
@@ -607,6 +686,7 @@ public class BattleSystem {
             enterResult("Caught " + enemyCreature.getName() + "!");
         } else {
             message = "Catch failed! (" + catchChance + "%)";
+            tickCooldowns();
             beginEnemyThinking();
         }
     }
@@ -648,15 +728,42 @@ public class BattleSystem {
         applyEndTurnStatusDamage(enemyCreature);
         playerCreature.tickStatus();
         enemyCreature.tickStatus();
-        tickCooldowns();
 
         if (playerCreature.isFainted()) {
-            playerCreature.healToFull();
-            lastResolvedEnemyName = enemyCreature != null ? enemyCreature.getName() : "";
-            lastBattleWon = false;
-            enterResult("You lost the battle.");
+            boolean hasAlive = false;
+            for (int i = 0; i < playerCreatures.length; i++) {
+                if (ownedPlayerCreatures[i] && !playerCreatures[i].isFainted()) {
+                    hasAlive = true;
+                    break;
+                }
+            }
+            if (hasAlive) {
+                message = playerCreature.getName() + " fainted! Choose another beast.";
+                playerMenuMode = PlayerMenuMode.SWITCH_SELECT;
+
+                for (int i = 0; i < playerCreatures.length; i++) {
+                    if (ownedPlayerCreatures[i] && !playerCreatures[i].isFainted()) {
+                        switchSelectionIndex = i;
+                        break;
+                    }
+                }
+
+                turnPhase = TurnPhase.PLAYER_TURN;
+                forceSwitchChoiceRequired = true;
+            } else {
+                lastResolvedEnemyName = enemyCreature != null ? enemyCreature.getName() : "";
+                lastBattleWon = false;
+                enterResult("All your beasts fainted. You lost.");
+            }
         } else {
-            message = "Enemy used " + enemyMove.getName() + " for " + damage + " damage.";
+            double eff = typeEffectiveness(enemyMove.getType(), playerCreature.getElement());
+            String effText = "";
+            if (eff > 1.0) {
+                effText = " Super Effective!";
+            } else if (eff < 1.0) {
+                effText = " Not Very Effective.";
+            }
+            message = "Enemy used " + enemyMove.getName() + " for " + damage + " DMG." + effText;
             turnPhase = TurnPhase.PLAYER_THINKING;
             thinkTimer = THINK_DURATION_SECONDS;
         }
@@ -683,14 +790,21 @@ public class BattleSystem {
     }
 
     private int computeDamage(BattleCreature attacker, BattleCreature defender, int movePower, BeastElement attackType,
-            BattleMove move) {
+                              BattleMove move) {
         if (attacker != null && attacker.isAllMighty()) {
             return Math.max(1, defender.getHp());
         }
         double levelPart = ((2.0 * attacker.getLevel() / 5.0) + 2.0);
         double core = ((levelPart * movePower * (attacker.getAttack() / (double) Math.max(1, defender.getDefense())))
                 / 50.0) + 2.0;
-        double stab = (attackType != BeastElement.NEUTRAL && attackType == attacker.getElement()) ? 1.5 : 1.0;
+
+        double stab = 1.0;
+        if (attackType != null && attacker.getElement() != null) {
+            if (!attackType.name().toUpperCase().equals("NEUTRAL") && attackType.name().equals(attacker.getElement().name())) {
+                stab = 1.5;
+            }
+        }
+
         double typeEffect = typeEffectiveness(attackType, defender.getElement());
         double critRate = 0.25;
         if (move != null && move.getMoveEffect() == MoveEffect.HIGH_CRIT) {
@@ -702,48 +816,64 @@ public class BattleSystem {
         return Math.max(2, dmg);
     }
 
-    private void drawStatusPanel(Graphics2D g2d, int x, int y, int width, int height, BattleCreature creature,
-            boolean showNumericHp) {
-        g2d.setColor(new Color(18, 20, 28, 230));
+    private void drawStatusPanel(Graphics2D g2d, int x, int y, int width, int height, BattleCreature creature, boolean showNumericHp) {
+        g2d.setColor(new Color(35, 40, 45, 240));
         g2d.fillRoundRect(x, y, width, height, 12, 12);
-        g2d.setColor(new Color(235, 235, 235));
+        g2d.setColor(new Color(60, 65, 75));
         g2d.drawRoundRect(x, y, width, height, 12, 12);
+        g2d.setColor(new Color(235, 235, 235));
+        g2d.drawRoundRect(x + 2, y + 2, width - 4, height - 4, 10, 10);
 
         g2d.setColor(Color.WHITE);
-        g2d.drawString(creature.getName() + " Lv." + creature.getLevel(), x + 12, y + 22);
-        g2d.drawString("HP", x + 12, y + 44);
-        int hpBarX = x + 42;
-        int hpBarY = y + 32;
-        int hpBarW = width - 56;
-        drawBar(g2d, hpBarX, hpBarY, hpBarW, 12, creature.getHp() / (double) creature.getMaxHp(),
-                getHpBarColor(creature.getHp() / (double) creature.getMaxHp()));
+        g2d.drawString(creature.getName(), x + 14, y + 22);
 
-        g2d.setColor(Color.WHITE);
-        g2d.drawString("EN", x + 12, y + 62);
-        int enBarX = x + 42;
-        int enBarY = y + 50;
-        int enBarW = width - 56;
-        drawBar(g2d, enBarX, enBarY, enBarW, 10, creature.getEnergy() / (double) creature.getMaxEnergy(),
-                new Color(94, 164, 255));
+        String lvText = "Lv" + creature.getLevel();
+        int lvWidth = g2d.getFontMetrics().stringWidth(lvText);
+        g2d.drawString(lvText, x + width - 14 - lvWidth, y + 22);
+
+        g2d.setColor(new Color(240, 190, 80));
+        g2d.drawString("HP", x + 14, y + 38);
+        int barX = x + 38;
+        int barW = width - 52;
+        drawBar(g2d, barX, y + 30, barW, 6, creature.getHp() / (double) creature.getMaxHp(), getHpBarColor(creature.getHp() / (double) creature.getMaxHp()));
+
+        g2d.setColor(new Color(110, 180, 255));
+        g2d.drawString("EN", x + 14, y + 48);
+        drawBar(g2d, barX, y + 42, barW, 4, creature.getEnergy() / (double) creature.getMaxEnergy(), new Color(94, 164, 255));
 
         if (showNumericHp) {
             g2d.setColor(Color.WHITE);
-            g2d.drawString(creature.getHp() + "/" + creature.getMaxHp(), x + width - 100, y + 78);
+            String hpText = creature.getHp() + " / " + creature.getMaxHp();
+            int textWidth = g2d.getFontMetrics().stringWidth(hpText);
+            g2d.drawString(hpText, x + width - 14 - textWidth, y + 64);
         }
+
         if (creature.getStatusEffect() != StatusEffect.NONE) {
-            g2d.setColor(new Color(255, 230, 120));
-            g2d.drawString(creature.getStatusEffect().name() + " " + creature.getStatusTurns() + "T", x + 12, y + 78);
+            g2d.setColor(new Color(230, 80, 80));
+            String status = creature.getStatusEffect().name();
+            if(status.length() > 3) {
+                status = status.substring(0, 3);
+            }
+            int statusWidth = g2d.getFontMetrics().stringWidth(status);
+            g2d.drawString(status, x + width - 14 - lvWidth - statusWidth - 8, y + 22);
         }
     }
 
     private void drawBar(Graphics2D g2d, int x, int y, int w, int h, double ratio, Color fillColor) {
-        g2d.setColor(new Color(55, 55, 65));
-        g2d.fillRoundRect(x, y, w, h, 8, 8);
+        g2d.setColor(new Color(45, 45, 55));
+        g2d.fillRect(x - 1, y - 1, w + 2, h + 2);
+
+        g2d.setColor(new Color(85, 90, 95));
+        g2d.fillRect(x, y, w, h);
+
         int fillW = (int) Math.round(w * clamp01(ratio));
         g2d.setColor(fillColor);
-        g2d.fillRoundRect(x, y, Math.max(0, fillW), h, 8, 8);
-        g2d.setColor(new Color(18, 18, 24));
-        g2d.drawRoundRect(x, y, w, h, 8, 8);
+        g2d.fillRect(x, y, Math.max(0, fillW), h);
+
+        if(fillW > 0) {
+            g2d.setColor(new Color(255, 255, 255, 60));
+            g2d.fillRect(x, y, fillW, 1);
+        }
     }
 
     private Color getHpBarColor(double hpRatio) {
@@ -808,6 +938,8 @@ public class BattleSystem {
             boolean isActive = i == activePlayerIndex;
             boolean isCursor = i == switchSelectionIndex;
             boolean owned = ownedPlayerCreatures[i];
+            boolean isFainted = creature.isFainted();
+
             g2d.setColor(isActive ? new Color(54, 82, 120, 230) : new Color(26, 30, 42, 220));
             g2d.fillRoundRect(bx, by, btnW, btnH, 8, 8);
             g2d.setColor(new Color(215, 215, 220));
@@ -822,6 +954,9 @@ public class BattleSystem {
             g2d.drawString("EN " + creature.getEnergy() + "/" + creature.getMaxEnergy(), bx + 8, by + 54);
             if (!owned) {
                 g2d.drawString("LOCKED", bx + 8, by + 72);
+            } else if (isFainted) {
+                g2d.setColor(new Color(224, 72, 72));
+                g2d.drawString("FAINTED", bx + 8, by + 72);
             } else if (isActive) {
                 g2d.drawString("ACTIVE", bx + 8, by + 72);
             } else {
@@ -831,7 +966,7 @@ public class BattleSystem {
     }
 
     private void drawBattleCharacter(Graphics2D g2d, BufferedImage sprite, int x, int y, int w, int h, boolean isHit,
-            Color fallbackColor) {
+                                     Color fallbackColor, boolean isPlayer) {
         if (sprite != null) {
             g2d.drawImage(sprite, x, y, w, h, null);
         } else {
@@ -841,7 +976,7 @@ public class BattleSystem {
             g2d.drawOval(x, y, w, h);
         }
         if (isHit) {
-            BufferedImage hit = sprite == enemyBattleSprite ? enemyBattleSpriteHit : getActivePlayerSpriteHit();
+            BufferedImage hit = isPlayer ? getActivePlayerSpriteHit() : enemyBattleSpriteHit;
             if (hit != null) {
                 g2d.drawImage(hit, x, y, w, h, null);
             }
@@ -854,7 +989,7 @@ public class BattleSystem {
 
     private BufferedImage getActivePlayerSprite() {
         BattleCreature activeCreature = getActivePlayerCreature();
-        BufferedImage beastSprite = getBattleSpriteForCreature(activeCreature.getName());
+        BufferedImage beastSprite = getBattleSpriteForCreature(activeCreature.getName(), true);
         if (beastSprite != null) {
             return beastSprite;
         }
@@ -863,37 +998,39 @@ public class BattleSystem {
 
     private BufferedImage getActivePlayerSpriteHit() {
         BattleCreature activeCreature = getActivePlayerCreature();
-        BufferedImage beastHit = getHitSpriteForCreature(activeCreature.getName());
+        BufferedImage beastHit = getHitSpriteForCreature(activeCreature.getName(), true);
         if (beastHit != null) {
             return beastHit;
         }
         return playerBattleSpritesHit[activePlayerIndex];
     }
 
-    private BufferedImage getBattleSpriteForCreature(String creatureName) {
+    private BufferedImage getBattleSpriteForCreature(String creatureName, boolean isPlayer) {
         String key = toAssetKey(creatureName);
         if (key.isEmpty()) {
             return null;
         }
-        if (beastSpriteCache.containsKey(key)) {
-            return beastSpriteCache.get(key);
+        String cacheKey = key + (isPlayer ? "_back" : "_front");
+        if (beastSpriteCache.containsKey(cacheKey)) {
+            return beastSpriteCache.get(cacheKey);
         }
-        BufferedImage sprite = loadBeastSprite(key);
-        beastSpriteCache.put(key, sprite);
+        BufferedImage sprite = loadBeastSprite(key, isPlayer);
+        beastSpriteCache.put(cacheKey, sprite);
         return sprite;
     }
 
-    private BufferedImage getHitSpriteForCreature(String creatureName) {
+    private BufferedImage getHitSpriteForCreature(String creatureName, boolean isPlayer) {
         String key = toAssetKey(creatureName);
         if (key.isEmpty()) {
             return null;
         }
-        if (beastSpriteHitCache.containsKey(key)) {
-            return beastSpriteHitCache.get(key);
+        String cacheKey = key + (isPlayer ? "_back_hit" : "_front_hit");
+        if (beastSpriteHitCache.containsKey(cacheKey)) {
+            return beastSpriteHitCache.get(cacheKey);
         }
-        BufferedImage base = getBattleSpriteForCreature(creatureName);
+        BufferedImage base = getBattleSpriteForCreature(creatureName, isPlayer);
         BufferedImage hit = createRedTintedSprite(base);
-        beastSpriteHitCache.put(key, hit);
+        beastSpriteHitCache.put(cacheKey, hit);
         return hit;
     }
 
@@ -990,11 +1127,24 @@ public class BattleSystem {
         double levelPart = ((2.0 * attacker.getLevel() / 5.0) + 2.0);
         double core = ((levelPart * move.getPower()
                 * (attacker.getAttack() / (double) Math.max(1, enemyCreature.getDefense()))) / 50.0) + 2.0;
-        double stab = (move.getType() != BeastElement.NEUTRAL && move.getType() == attacker.getElement()) ? 1.5 : 1.0;
+
+        double stab = 1.0;
+        if (move.getType() != null && attacker.getElement() != null) {
+            if (!move.getType().name().toUpperCase().equals("NEUTRAL") && move.getType().name().equals(attacker.getElement().name())) {
+                stab = 1.5;
+            }
+        }
+
         double eff = typeEffectiveness(move.getType(), enemyCreature.getElement());
+
         int minDamage = Math.max(2, (int) Math.round(core * stab * eff * 0.85));
-        int maxDamage = Math.max(2, (int) Math.round(core * stab * eff * 1.5 * 1.5));
-        return "DMG: " + minDamage + "-" + maxDamage;
+        int maxDamage = Math.max(2, (int) Math.round(core * stab * eff * 1.0));
+
+        String effMarker = "";
+        if (eff > 1.0) effMarker = " (SE)";
+        if (eff < 1.0) effMarker = " (NVE)";
+
+        return "DMG: " + minDamage + "-" + maxDamage + effMarker;
     }
 
     private void refreshActiveMoves() {
@@ -1024,12 +1174,12 @@ public class BattleSystem {
             case 17 -> 150;
             case 18 -> 170;
             case 19 -> 190;
-            default -> 220;
+            default -> 5000;
         };
     }
 
     private void applySpecialMoveEffect(BattleCreature attacker, BattleCreature defender, BattleMove move,
-            StringBuilder turnMsg) {
+                                        StringBuilder turnMsg) {
         switch (move.getMoveEffect()) {
             case HEAL_SELF_PERCENT_MAX_HP -> {
                 int heal = (int) Math.round(attacker.getMaxHp() * move.getEffectValue());
@@ -1078,68 +1228,58 @@ public class BattleSystem {
     }
 
     private double typeEffectiveness(BeastElement moveType, BeastElement defenderType) {
-        if (moveType == BeastElement.NEUTRAL || defenderType == BeastElement.NEUTRAL) {
-            return 1.0;
-        }
-        if (moveType == BeastElement.FIRE && (defenderType == BeastElement.GRASS || defenderType == BeastElement.WIND
-                || defenderType == BeastElement.STEEL))
-            return 2.0;
-        if (moveType == BeastElement.FIRE && (defenderType == BeastElement.WATER || defenderType == BeastElement.EARTH))
-            return 0.5;
-        if (moveType == BeastElement.WATER && (defenderType == BeastElement.FIRE || defenderType == BeastElement.EARTH))
-            return 2.0;
-        if (moveType == BeastElement.WATER
-                && (defenderType == BeastElement.GRASS || defenderType == BeastElement.ELECTRIC))
-            return 0.5;
-        if (moveType == BeastElement.GRASS
-                && (defenderType == BeastElement.WATER || defenderType == BeastElement.EARTH))
-            return 2.0;
-        if (moveType == BeastElement.GRASS && (defenderType == BeastElement.FIRE || defenderType == BeastElement.WIND))
-            return 0.5;
-        if (moveType == BeastElement.ELECTRIC
-                && (defenderType == BeastElement.WATER || defenderType == BeastElement.WIND))
-            return 2.0;
-        if (moveType == BeastElement.ELECTRIC
-                && (defenderType == BeastElement.EARTH || defenderType == BeastElement.STEEL))
-            return 0.5;
-        if (moveType == BeastElement.EARTH && (defenderType == BeastElement.ELECTRIC
-                || defenderType == BeastElement.STEEL || defenderType == BeastElement.FIRE))
-            return 2.0;
-        if (moveType == BeastElement.EARTH && (defenderType == BeastElement.WATER || defenderType == BeastElement.GRASS
-                || defenderType == BeastElement.DARK))
-            return 0.5;
-        if (moveType == BeastElement.WIND
-                && (defenderType == BeastElement.GRASS || defenderType == BeastElement.FIGHTING))
-            return 2.0;
-        if (moveType == BeastElement.WIND
-                && (defenderType == BeastElement.FIRE || defenderType == BeastElement.ELECTRIC))
-            return 0.5;
-        if (moveType == BeastElement.FIGHTING
-                && (defenderType == BeastElement.DARK || defenderType == BeastElement.STEEL))
-            return 2.0;
-        if (moveType == BeastElement.FIGHTING
-                && (defenderType == BeastElement.WIND || defenderType == BeastElement.PSYCHIC))
-            return 0.5;
-        if (moveType == BeastElement.DARK && (defenderType == BeastElement.EARTH || defenderType == BeastElement.WIND))
-            return 2.0;
-        if (moveType == BeastElement.DARK
-                && (defenderType == BeastElement.FIGHTING || defenderType == BeastElement.STEEL))
-            return 0.5;
-        if (moveType == BeastElement.STEEL
-                && (defenderType == BeastElement.DARK || defenderType == BeastElement.ELECTRIC))
-            return 2.0;
-        if (moveType == BeastElement.STEEL && (defenderType == BeastElement.FIRE || defenderType == BeastElement.EARTH))
-            return 0.5;
+        if (moveType == null || defenderType == null) return 1.0;
+        String mType = moveType.name().toUpperCase();
+        String dType = defenderType.name().toUpperCase();
+
+        if (mType.equals("NEUTRAL") || dType.equals("NEUTRAL")) return 1.0;
+
+        if (mType.equals("FIRE") && (dType.equals("GRASS") || dType.equals("WIND") || dType.equals("STEEL"))) return 2.0;
+        if (mType.equals("FIRE") && (dType.equals("WATER") || dType.equals("EARTH"))) return 0.5;
+
+        if (mType.equals("WATER") && (dType.equals("FIRE") || dType.equals("EARTH"))) return 2.0;
+        if (mType.equals("WATER") && (dType.equals("GRASS") || dType.equals("ELECTRIC"))) return 0.5;
+
+        if (mType.equals("GRASS") && (dType.equals("WATER") || dType.equals("EARTH"))) return 2.0;
+        if (mType.equals("GRASS") && (dType.equals("FIRE") || dType.equals("WIND"))) return 0.5;
+
+        if (mType.equals("ELECTRIC") && (dType.equals("WATER") || dType.equals("WIND"))) return 2.0;
+        if (mType.equals("ELECTRIC") && (dType.equals("EARTH") || dType.equals("STEEL"))) return 0.5;
+
+        if (mType.equals("EARTH") && (dType.equals("ELECTRIC") || dType.equals("STEEL") || dType.equals("FIRE"))) return 2.0;
+        if (mType.equals("EARTH") && (dType.equals("WATER") || dType.equals("GRASS") || dType.equals("DARK"))) return 0.5;
+
+        if (mType.equals("WIND") && (dType.equals("GRASS") || dType.equals("FIGHTING"))) return 2.0;
+        if (mType.equals("WIND") && (dType.equals("FIRE") || dType.equals("ELECTRIC"))) return 0.5;
+
+        if (mType.equals("FIGHTING") && (dType.equals("DARK") || dType.equals("STEEL"))) return 2.0;
+        if (mType.equals("FIGHTING") && (dType.equals("WIND") || dType.equals("PSYCHIC"))) return 0.5;
+
+        if (mType.equals("DARK") && (dType.equals("EARTH") || dType.equals("WIND"))) return 2.0;
+        if (mType.equals("DARK") && (dType.equals("FIGHTING") || dType.equals("STEEL"))) return 0.5;
+
+        if (mType.equals("STEEL") && (dType.equals("DARK") || dType.equals("ELECTRIC"))) return 2.0;
+        if (mType.equals("STEEL") && (dType.equals("FIRE") || dType.equals("EARTH"))) return 0.5;
+
         return 1.0;
     }
 
-    private static BufferedImage loadBeastSprite(String key) {
+    private static BufferedImage loadBeastSprite(String key, boolean isPlayer) {
         String base = "res/beasts/" + key + "/" + key;
+
+        if (isPlayer) {
+            BufferedImage sprite = loadSprite(base + "-b.png");
+            if (sprite != null) {
+                return sprite;
+            }
+        }
+
         String[] candidates = new String[] {
                 base + "-f.png",
                 base + "-fw.png",
                 base + "-b.png"
         };
+
         for (String path : candidates) {
             BufferedImage sprite = loadSprite(path);
             if (sprite != null) {
@@ -1192,7 +1332,6 @@ public class BattleSystem {
     }
 
     public void setVisible(boolean b) {
-        // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setVisible'");
     }
 }
