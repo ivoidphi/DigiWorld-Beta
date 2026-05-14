@@ -1,6 +1,7 @@
 package digiworld.maps;
 
 import digiworld.core.World;
+import digiworld.core.Structure;
 
 public final class AlphaVillageTileMap {
     public static final int TRACKED_BUSH_X = 13;
@@ -79,6 +80,8 @@ public final class AlphaVillageTileMap {
                 world.setTile(x, y, TileMapPalette.toTile(map[y][x]));
             }
         }
+
+        // Add house structure at tile 25,14
+        world.addStructure(new Structure(25 * 32, 14 * 32, 64, 64, 32, 10, 10, "res/Structures/house_finalbot.png", "res/Structures/house_finalTop.png", 32));
     }
 }
-

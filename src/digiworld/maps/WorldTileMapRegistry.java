@@ -11,7 +11,7 @@ public final class WorldTileMapRegistry {
             return;
         }
         String name = world.getName();
-        if ("Hometown".equalsIgnoreCase(name)) {
+        if ("Hometown".equalsIgnoreCase(name) || "House 1".equalsIgnoreCase(name)) {
             HometownTileMap.applyTo(world);
             return;
         }

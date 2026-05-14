@@ -1,5 +1,6 @@
 package digiworld.maps;
 
+import digiworld.core.Structure;
 import digiworld.core.World;
 
 public final class HometownTileMap {
@@ -33,6 +34,6 @@ public final class HometownTileMap {
                 world.setTile(x, y, TileMapPalette.toTile(map[y][x]));
             }
         }
+        world.addStructure(new Structure(10 * 32, 14 * 32, 128, 96, 32, 10, 10, "res/Structures/house_finalbot.png", "res/Structures/house_finalTop.png", 32));
     }
 }
-

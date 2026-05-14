@@ -1,6 +1,5 @@
 package digiworld.app;
 
-import digiworld.app.*;
 import digiworld.audio.SoundManager;
 import digiworld.battle.*;
 import digiworld.core.*;
@@ -13,6 +12,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
@@ -49,6 +49,10 @@ public class GamePanel extends JPanel implements Runnable {
     private final Random random;
     private int worldIndex;
     private final Player player;
+    private final DoorManager doorManager;
+
+    public int getWorldIndex() { return worldIndex; }
+    public Player getPlayer() { return player; }
 
     private Thread gameThread;
     private long lastTimeNanos;
@@ -193,6 +197,8 @@ public class GamePanel extends JPanel implements Runnable {
         random = new Random();
         worldIndex = 0;
         player = new Player(worlds[0].getSpawnTileX() * TILE_SIZE, worlds[0].getSpawnTileY() * TILE_SIZE, TILE_SIZE, input, TILE_SIZE);
+        doorManager = new DoorManager(this, TILE_SIZE);
+        player.setDoorManager(doorManager);
         frameBuffer = new BufferedImage(LOGICAL_WIDTH, LOGICAL_HEIGHT, BufferedImage.TYPE_INT_ARGB);
         interactionMessage = "";
         activeNpc = null;
@@ -413,6 +419,7 @@ public class GamePanel extends JPanel implements Runnable {
             double beforeX = player.getX();
             double beforeY = player.getY();
             player.update(deltaSeconds, current);
+            if (gameState == GameState.EXPLORATION) doorManager.check();
             spawnMovementParticles(current, beforeX, beforeY);
             updateHometownTeleportDoor(current);
             Npc nearbyNpc = getNearbyNpc(current);
@@ -1279,7 +1286,12 @@ public class GamePanel extends JPanel implements Runnable {
         encounterCooldownTimer = 1.5;
     }
 
-    private void teleportWithFade(int targetWorldIndex) {
+    public void teleportWithFade(int targetWorldIndex) {
+        World world = worlds[targetWorldIndex];
+        teleportWithFade(targetWorldIndex, world.getSpawnTileX(), world.getSpawnTileY());
+    }
+
+    public void teleportWithFade(int targetWorldIndex, int spawnTileX, int spawnTileY) {
         if (teleportInProgress) {
             return;
         }
@@ -1317,7 +1329,7 @@ public class GamePanel extends JPanel implements Runnable {
                 } else if (worldIndex == 0 && pendingStage1ReturnCutscene) {
                     startStage1ReturnAndStage2Intro();
                 }
-                player.teleportToTile(world.getSpawnTileX(), world.getSpawnTileY());
+                player.teleportToTile(spawnTileX, spawnTileY);
                 previousTileX = (int) player.getX() / TILE_SIZE;
                 previousTileY = (int) player.getY() / TILE_SIZE;
                 encounterCooldownTimer = 1.5;
@@ -1338,6 +1350,9 @@ public class GamePanel extends JPanel implements Runnable {
         }
         if (targetWorldIndex == 2) {
             return pendingBetaIntroDialogue || questManager.atLeast(QuestManager.STAGE_RETURNED_TO_LAB);
+        }
+        if (targetWorldIndex == WorldIndex.HOUSE_1) {
+            return true;
         }
         return false;
     }
@@ -1559,14 +1574,14 @@ public class GamePanel extends JPanel implements Runnable {
         SaveManager.save(data);
     }
 
+
     private World[] createWorlds() {
         String aldrichBase = findAldrichSpriteBaseDir();
         World[] built = new World[]{
                 new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{
                         new Npc(
                                 "Professor Alfred",
-                                TILE_SIZE,
-                                TILE_SIZE,
+                                TILE_SIZE, TILE_SIZE,
                                 new Color(214, 93, 177),
                                 new int[][]{{24, 18}, {26, 18}, {26, 20}, {24, 20}},
                                 "res/characters/professor-alfred/profalfred-fw.png",
@@ -1576,8 +1591,7 @@ public class GamePanel extends JPanel implements Runnable {
                         ),
                         new Npc(
                                 "General Edrian",
-                                TILE_SIZE,
-                                TILE_SIZE,
+                                TILE_SIZE, TILE_SIZE,
                                 new Color(245, 132, 92),
                                 new int[][]{{20, 17}, {18, 17}, {18, 20}, {20, 20}},
                                 "res/characters/gen-ed/gened-fw.png",
@@ -1589,8 +1603,7 @@ public class GamePanel extends JPanel implements Runnable {
                 new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
                         new Npc(
                                 "Chief Rei",
-                                TILE_SIZE,
-                                TILE_SIZE,
+                                TILE_SIZE, TILE_SIZE,
                                 new Color(93, 177, 214),
                                 new int[][]{{26, 19}, {28, 19}, {28, 21}, {26, 21}},
                                 "res/characters/chief-rei/chiefrei-fw.png",
@@ -1600,13 +1613,14 @@ public class GamePanel extends JPanel implements Runnable {
                         ),
                         new Npc(
                                 "Aldrich",
-                                TILE_SIZE,
-                                TILE_SIZE,
+                                TILE_SIZE, TILE_SIZE,
                                 new Color(200, 80, 80),
-                                new int[][]{{digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
+                                new int[][]{
                                         {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
                                         {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
-                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y}},
+                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y},
+                                        {digiworld.maps.AlphaVillageTileMap.HEART_CENTER_X, digiworld.maps.AlphaVillageTileMap.HEART_CENTER_Y}
+                                },
                                 aldrichBase + "/aldrich-fw.png",
                                 aldrichBase + "/aldrich-b.png",
                                 aldrichBase + "/aldrich-l.png",
@@ -1616,8 +1630,7 @@ public class GamePanel extends JPanel implements Runnable {
                 new World("World 3 - Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
                         new Npc(
                                 "Ace Jazz",
-                                TILE_SIZE,
-                                TILE_SIZE,
+                                TILE_SIZE, TILE_SIZE,
                                 new Color(230, 160, 75),
                                 new int[][]{{33, 26}, {33, 26}, {33, 26}, {33, 26}},
                                 "res/characters/ace-jazz/acejazz-fw.png",
@@ -1627,8 +1640,7 @@ public class GamePanel extends JPanel implements Runnable {
                         ),
                         new Npc(
                                 "Trialmaster",
-                                TILE_SIZE,
-                                TILE_SIZE,
+                                TILE_SIZE, TILE_SIZE,
                                 new Color(180, 130, 214),
                                 new int[][]{{28, 12}, {28, 12}, {28, 12}, {28, 12}},
                                 "res/characters/trialmaster/trialmaster-fw.png",
@@ -1636,6 +1648,26 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/trialmaster/trialmaster-l.png",
                                 "res/characters/trialmaster/trialmaster-r.png"
                         )
+                }),
+                new World("World 4 - Collapse Zone", 60, 46, TILE_SIZE, 30, 23, new Npc[]{
+                        new Npc(
+                                "Glitch",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{30, 23}, {30, 23}, {30, 23}, {30, 23}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
+                        )
+                }),
+                // ── House interiors ──────────────────────────────────────────────
+                // WorldIndex.HOUSE_1 = 4
+                // spawnTileX/Y = where player appears when entering from outside
+                // Tune these after using the debug coordinate display
+                new World("House 1", 46, 36, TILE_SIZE, 25, 19, new Npc[]{
+                        // Add interior NPCs here when ready
+                        // new Npc("Chief Rei Interior", TILE_SIZE, TILE_SIZE, ...)
                 })
         };
         for (World world : built) {
@@ -1681,19 +1713,22 @@ public class GamePanel extends JPanel implements Runnable {
         } else {
             current.renderTiles(scene, camera, TILE_SIZE, LOGICAL_WIDTH, LOGICAL_HEIGHT, windTimeSeconds);
             current.renderWindLines(scene, camera, LOGICAL_WIDTH, LOGICAL_HEIGHT, windTimeSeconds);
+            current.drawStructuresBefore(scene, camera, (int) player.getY() + player.getSize());
             for (Npc npc : current.getNpcs()) {
                 npc.render(scene, camera);
             }
             renderParticles(scene, true);
             player.render(scene, camera);
             renderParticles(scene, false);
+            current.drawStructuresAfter(scene, camera, (int) player.getY() + player.getSize());
+            drawDebugHitboxes(scene);
             drawScanMarker(scene);
-            drawHometownTeleportDoorPlaceholder(scene, current);
             if (bossArenaActive) {
                 drawBossArena(scene, current);
             }
             drawNearbyNpcNametags(scene, current);
             drawHud(scene, current);
+            drawCoordinateHud(scene, current);
             drawNpcSpeechBubble(scene);
             if (gameState == GameState.DIALOGUE) {
                 drawDialogueAboveNpc(scene);
@@ -1755,6 +1790,48 @@ public class GamePanel extends JPanel implements Runnable {
                 hasGWatch,
                 scanUiFlashTimer > 0.0
         );
+    }
+
+    private void drawCoordinateHud(Graphics2D g2d, World current) {
+        int playerPixelX = (int) Math.round(player.getX());
+        int playerPixelY = (int) Math.round(player.getY());
+        int tileX = player.getCenterX() / TILE_SIZE;
+        int tileY = player.getCenterY() / TILE_SIZE;
+        TileType currentTile = current.getTile(tileX, tileY);
+
+        String[] lines = {
+                current.getName(),
+                "Tile: " + tileX + ", " + tileY,
+                "Pixel: " + playerPixelX + ", " + playerPixelY,
+                "Ground: " + currentTile.name()
+        };
+
+        g2d.setFont(UIFont.regular(10f));
+        int paddingX = 8;
+        int lineHeight = 12;
+        int boxWidth = 0;
+        for (String line : lines) {
+            boxWidth = Math.max(boxWidth, g2d.getFontMetrics().stringWidth(line));
+        }
+        boxWidth += paddingX * 2;
+        int boxHeight = 8 + lines.length * lineHeight;
+        int boxX = LOGICAL_WIDTH - boxWidth - 10;
+        int boxY = 10;
+
+        g2d.setColor(new Color(0, 0, 0, 175));
+        g2d.fillRoundRect(boxX + 2, boxY + 2, boxWidth, boxHeight, 8, 8);
+        g2d.setColor(new Color(12, 18, 24, 220));
+        g2d.fillRoundRect(boxX, boxY, boxWidth, boxHeight, 8, 8);
+        g2d.setColor(new Color(214, 229, 236, 220));
+        g2d.drawRoundRect(boxX, boxY, boxWidth, boxHeight, 8, 8);
+
+        for (int i = 0; i < lines.length; i++) {
+            int textY = boxY + 16 + i * lineHeight;
+            g2d.setColor(new Color(0, 0, 0, 180));
+            g2d.drawString(lines[i], boxX + paddingX + 1, textY + 1);
+            g2d.setColor(i == 0 ? new Color(255, 232, 150) : new Color(240, 244, 248));
+            g2d.drawString(lines[i], boxX + paddingX, textY);
+        }
     }
 
     private void spawnMovementParticles(World world, double beforeX, double beforeY) {
@@ -2301,4 +2378,32 @@ public class GamePanel extends JPanel implements Runnable {
         c.dispose();
     }
 
+    private void drawDebugHitboxes(Graphics2D g) {
+        // Player hitbox
+        int px = (int) player.getX() - camera.getX();
+        int py = (int) player.getY() - camera.getY();
+        int ps = player.getSize();
+        g.setColor(Color.RED);
+        g.drawRect(px, py, ps, ps);
+
+        // Structure hitboxes
+        for (Structure s : worlds[worldIndex].getStructures()) {
+            Rectangle r = s.getCollisionRect();
+            int sx = r.x - camera.getX();
+            int sy = r.y - camera.getY();
+            g.setColor(Color.GREEN);
+            g.drawRect(sx, sy, r.width, r.height);
+        }
+
+        // Door hitboxes
+        for (DoorEntry d : doorManager.getDoors()) {
+            Rectangle r = d.getRect();
+            int dx = r.x - camera.getX();
+            int dy = r.y - camera.getY();
+            g.setColor(Color.BLUE);
+            g.drawRect(dx, dy, r.width, r.height);
+        }
+    }
+
 }
+
