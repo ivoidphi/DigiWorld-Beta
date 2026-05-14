@@ -1,6 +1,5 @@
 package digiworld.app;
 
-import digiworld.app.*;
 import digiworld.audio.SoundManager;
 import digiworld.battle.*;
 import digiworld.core.*;
@@ -350,10 +349,13 @@ public class GamePanel extends JPanel implements Runnable {
             String result = battleSystem.handleInput(input);
             if (!battleSystem.isActive()) {
                 encounterCooldownTimer = 2.0 + random.nextDouble() * 3.0;
-                String caughtCreature = battleSystem.consumeCaughtCreatureName();
-                if (caughtCreature != null && !caughtCreature.isBlank()) {
+
+                // --- LEVEL UP SYSTEM FIX: Capture the actual leveled-up object ---
+                BattleCreature caughtCreature = battleSystem.consumeCaughtCreature();
+                if (caughtCreature != null) {
                     inventory.addBeast(caughtCreature);
                 }
+
                 String msg = battleSystem.getMessage();
                 applyBattleOutcomeProgress();
                 boolean vineratopsJustWon = false;
@@ -515,7 +517,7 @@ public class GamePanel extends JPanel implements Runnable {
         objectiveTransitioning = true;
         objectiveTransitionPhase = ObjectiveTransitionPhase.COMPLETE_FADE_IN;
         objectivePhaseTimer = 0.0;
-        objectiveTextAlpha = 0.0; // hide current objective immediately
+        objectiveTextAlpha = 0.0;
         objectiveCompleteAlpha = 0.0;
     }
 
@@ -1091,6 +1093,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
+    // --- LEVEL UP SYSTEM FIX: Creates real objects, saves them to bag ---
     private void handleStarterSelectionInput() {
         if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
             interactionMessage = "Select exactly 3 Mecha Beasts to continue.";
@@ -1137,15 +1140,13 @@ public class GamePanel extends JPanel implements Runnable {
                 return;
             }
 
-            String[] party = new String[3];
-            int i = 0;
             for (Integer idx : selectedStarterIndices) {
-                String beast = starterChoices[idx];
-                party[i++] = beast;
+                String beastName = starterChoices[idx];
+                BattleCreature beast = BeastCatalog.createCreature(beastName);
                 inventory.addBeast(beast);
             }
-            battleSystem.setPlayerParty(party);
-            battleSystem.setStarterBeast(party[0]);
+
+            prepareBattlePartyFromInventory();
             starterChosen = true;
             starterSelectionDone = true;
             hasGWatch = true;
@@ -1246,9 +1247,10 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
+    // --- LEVEL UP SYSTEM FIX: Uses actual trained BattleCreature objects ---
     private boolean prepareBattlePartyFromInventory() {
-        String[] equipped = inventory.getEquippedBeastNames();
-        if (equipped.length < 1) {
+        BattleCreature[] equipped = inventory.getEquippedBeasts();
+        if (equipped == null || equipped.length < 1) {
             interactionMessage = "Your Mecha Beasts need recovery first.";
             gameState = GameState.EXPLORATION;
             return false;
@@ -1258,8 +1260,7 @@ public class GamePanel extends JPanel implements Runnable {
             gameState = GameState.EXPLORATION;
             return false;
         }
-        battleSystem.setPlayerParty(equipped);
-        battleSystem.setStarterBeast(equipped[0]);
+        battleSystem.setPlayerCreatures(equipped);
         return true;
     }
 
@@ -1502,7 +1503,6 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.fillRoundRect(energyX, y + 7, opening, h - 14, 6, 6);
         g2d.setColor(new Color(225, 245, 255, 210));
         g2d.drawString("Teleport Door", x - 4, y - 4);
-        // TODO(art): replace this placeholder with final glowing sci-fi animated door asset.
     }
 
     private void beginBetaCityPreparationTransition() {
@@ -1798,15 +1798,15 @@ public class GamePanel extends JPanel implements Runnable {
     private void spawnLeafParticle(double x, double y, double dirX, double dirY) {
         double spreadX = (random.nextDouble() - 0.5) * 20.0;
         double spreadY = (random.nextDouble() - 0.5) * 12.0;
-                addParticle(new Particle(
-                        x, y,
-                        dirX * (28 + random.nextDouble() * 20) + spreadX * 0.2,
-                        dirY * (12 + random.nextDouble() * 12) - 14 + spreadY * 0.2,
-                        0.32 + random.nextDouble() * 0.22,
-                        new Color(118, 204, 92, 210),
-                        3 + random.nextInt(3),
-                        false
-                ));
+        addParticle(new Particle(
+                x, y,
+                dirX * (28 + random.nextDouble() * 20) + spreadX * 0.2,
+                dirY * (12 + random.nextDouble() * 12) - 14 + spreadY * 0.2,
+                0.32 + random.nextDouble() * 0.22,
+                new Color(118, 204, 92, 210),
+                3 + random.nextInt(3),
+                false
+        ));
     }
 
     private void spawnFootParticle(double x, double y) {
@@ -1970,7 +1970,6 @@ public class GamePanel extends JPanel implements Runnable {
         String name = current.getName();
         int playerTileX = (int) player.getX() / TILE_SIZE;
         int playerTileY = (int) player.getY() / TILE_SIZE;
-
     }
 
     private void startBossBattle(World current, String bossName) {
@@ -2044,11 +2043,12 @@ public class GamePanel extends JPanel implements Runnable {
     private void handleBossDefeat() {
         if (currentBossWorldIndex == 1 && questManager.isStage(QuestManager.STAGE_COMPLETED_TUTORIAL)) {
             interactionMessage = "Come back when your bond with your beasts is stronger, fool.";
-            String[] equipped = inventory.getEquippedBeastNames();
+
+            BattleCreature[] equipped = inventory.getEquippedBeasts();
             if (equipped != null && equipped.length >= 3) {
-                battleSystem.setPlayerParty(equipped);
-                battleSystem.setStarterBeast(equipped[0]);
+                battleSystem.setPlayerCreatures(equipped);
             }
+
             player.teleportToTile(25, 14);
             setObjective("Defeat Aldrich");
         }

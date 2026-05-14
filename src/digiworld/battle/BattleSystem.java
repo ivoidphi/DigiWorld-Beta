@@ -66,7 +66,9 @@ public class BattleSystem {
     private boolean active;
     private String message;
     private String pendingResultMessage;
-    private String pendingCaughtCreatureName;
+
+    private BattleCreature pendingCaughtCreature;
+
     private ScenePhase scenePhase;
     private TurnPhase turnPhase;
     private double introTimer;
@@ -101,7 +103,6 @@ public class BattleSystem {
         playerCreatures = new BattleCreature[0];
         playerBattleSprites = new BufferedImage[0];
         playerBattleSpritesHit = new BufferedImage[0];
-        setPlayerParty(new String[] { "Nokami", "Vineratops", "Kyoflare" });
         activePlayerIndex = 0;
 
         enemyBattleSprite = null;
@@ -112,9 +113,7 @@ public class BattleSystem {
         playerMenuMode = PlayerMenuMode.COMMAND;
         switchSelectionIndex = 0;
         ownedPlayerCreatures = new boolean[playerCreatures.length];
-        for (int i = 0; i < ownedPlayerCreatures.length; i++) {
-            ownedPlayerCreatures[i] = true;
-        }
+
         openingBeastChoiceRequired = false;
         forceSwitchChoiceRequired = false;
         lastResolvedEnemyName = "";
@@ -143,7 +142,7 @@ public class BattleSystem {
         playerHitTimer = 0.0;
         enemyHitTimer = 0.0;
         pendingResultMessage = "";
-        pendingCaughtCreatureName = null;
+        pendingCaughtCreature = null;
         openingBeastChoiceRequired = true;
         forceSwitchChoiceRequired = false;
         playerMenuMode = PlayerMenuMode.SWITCH_SELECT;
@@ -178,6 +177,12 @@ public class BattleSystem {
         return out;
     }
 
+    public BattleCreature consumeCaughtCreature() {
+        BattleCreature caught = pendingCaughtCreature;
+        pendingCaughtCreature = null;
+        return caught;
+    }
+
     public String[] getStarterChoices() {
         return BeastCatalog.starterNames();
     }
@@ -187,39 +192,13 @@ public class BattleSystem {
     }
 
     public void setStarterBeast(String beastName) {
-        if (beastName == null) {
-            return;
-        }
+        if (beastName == null) return;
         for (int i = 0; i < playerCreatures.length; i++) {
             if (playerCreatures[i].getName().equalsIgnoreCase(beastName.trim())) {
                 activePlayerIndex = i;
                 return;
             }
         }
-    }
-
-    public void setPlayerParty(String[] beastNames) {
-        if (beastNames == null || beastNames.length == 0) {
-            return;
-        }
-        int partySize = Math.min(3, beastNames.length);
-        BattleCreature[] newCreatures = new BattleCreature[partySize];
-        BufferedImage[] newSprites = new BufferedImage[partySize];
-        BufferedImage[] newHitSprites = new BufferedImage[partySize];
-        for (int i = 0; i < partySize; i++) {
-            String name = beastNames[i] == null || beastNames[i].isBlank() ? "Nokami" : beastNames[i].trim();
-            newCreatures[i] = BeastCatalog.createCreature(name);
-            newSprites[i] = getBattleSpriteForCreature(name, true);
-            newHitSprites[i] = createRedTintedSprite(newSprites[i]);
-        }
-        playerCreatures = newCreatures;
-        playerBattleSprites = newSprites;
-        playerBattleSpritesHit = newHitSprites;
-        activePlayerIndex = 0;
-        ownedPlayerCreatures = new boolean[partySize];
-        Arrays.fill(ownedPlayerCreatures, true);
-        switchButtons = new Rectangle[partySize];
-        refreshActiveMoves();
     }
 
     public void setPlayerCreatures(BattleCreature[] creatures) {
@@ -276,12 +255,6 @@ public class BattleSystem {
         return message;
     }
 
-    public String consumeCaughtCreatureName() {
-        String caught = pendingCaughtCreatureName;
-        pendingCaughtCreatureName = null;
-        return caught;
-    }
-
     public void handleClick(int logicalX, int logicalY) {
         if (!active || scenePhase != ScenePhase.COMBAT || turnPhase != TurnPhase.PLAYER_TURN) {
             return;
@@ -332,44 +305,17 @@ public class BattleSystem {
                 trySwitchToIndex(switchSelectionIndex);
                 return "continue";
             }
-            if (input.consumeJustPressed(KeyEvent.VK_1)) {
-                trySwitchToIndex(0);
-                return "continue";
-            }
-            if (input.consumeJustPressed(KeyEvent.VK_2)) {
-                trySwitchToIndex(1);
-                return "continue";
-            }
-            if (input.consumeJustPressed(KeyEvent.VK_3)) {
-                trySwitchToIndex(2);
-                return "continue";
-            }
+            if (input.consumeJustPressed(KeyEvent.VK_1)) { trySwitchToIndex(0); return "continue"; }
+            if (input.consumeJustPressed(KeyEvent.VK_2)) { trySwitchToIndex(1); return "continue"; }
+            if (input.consumeJustPressed(KeyEvent.VK_3)) { trySwitchToIndex(2); return "continue"; }
             return "none";
         }
-        if (input.consumeJustPressed(KeyEvent.VK_1)) {
-            runActionIndex(0);
-            return "continue";
-        }
-        if (input.consumeJustPressed(KeyEvent.VK_2)) {
-            runActionIndex(1);
-            return "continue";
-        }
-        if (input.consumeJustPressed(KeyEvent.VK_3)) {
-            runActionIndex(2);
-            return "continue";
-        }
-        if (input.consumeJustPressed(KeyEvent.VK_4)) {
-            runActionIndex(3);
-            return "continue";
-        }
-        if (input.consumeJustPressed(KeyEvent.VK_5)) {
-            runActionIndex(4);
-            return "continue";
-        }
-        if (input.consumeJustPressed(KeyEvent.VK_6)) {
-            runActionIndex(5);
-            return "continue";
-        }
+        if (input.consumeJustPressed(KeyEvent.VK_1)) { runActionIndex(0); return "continue"; }
+        if (input.consumeJustPressed(KeyEvent.VK_2)) { runActionIndex(1); return "continue"; }
+        if (input.consumeJustPressed(KeyEvent.VK_3)) { runActionIndex(2); return "continue"; }
+        if (input.consumeJustPressed(KeyEvent.VK_4)) { runActionIndex(3); return "continue"; }
+        if (input.consumeJustPressed(KeyEvent.VK_5)) { runActionIndex(4); return "continue"; }
+        if (input.consumeJustPressed(KeyEvent.VK_6)) { runActionIndex(5); return "continue"; }
         return "none";
     }
 
@@ -680,7 +626,7 @@ public class BattleSystem {
         double rawChance = (((3.0 * maxHp - 2.0 * currentHp) * 1.0) / (3.0 * maxHp)) * 0.75;
         int catchChance = (int) Math.round(Math.max(0.05, Math.min(0.95, rawChance)) * 100.0);
         if (random.nextInt(100) < catchChance) {
-            pendingCaughtCreatureName = enemyCreature.getName();
+            pendingCaughtCreature = enemyCreature;
             lastResolvedEnemyName = enemyCreature.getName();
             lastBattleWon = false;
             enterResult("Caught " + enemyCreature.getName() + "!");
@@ -1045,6 +991,15 @@ public class BattleSystem {
         outroTimer = OUTRO_DURATION_SECONDS;
         pendingResultMessage = resultMessage;
         message = "";
+
+        // Auto-heal all player's mecha beasts to full at the end of the battle
+        if (playerCreatures != null) {
+            for (BattleCreature creature : playerCreatures) {
+                if (creature != null) {
+                    creature.healToFull();
+                }
+            }
+        }
     }
 
     private void drawCenteredBanner(Graphics2D g2d, int screenWidth, int screenHeight, String text) {
