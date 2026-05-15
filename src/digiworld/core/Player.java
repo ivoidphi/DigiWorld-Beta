@@ -43,10 +43,10 @@ public class Player extends Entity {
     public void update(double deltaSeconds, World world) {
         double moveX = 0, moveY = 0;
 
-        if (input.isPressed(java.awt.event.KeyEvent.VK_W) || input.isPressed(java.awt.event.KeyEvent.VK_UP))    moveY -= 1;
-        if (input.isPressed(java.awt.event.KeyEvent.VK_S) || input.isPressed(java.awt.event.KeyEvent.VK_DOWN))  moveY += 1;
-        if (input.isPressed(java.awt.event.KeyEvent.VK_A) || input.isPressed(java.awt.event.KeyEvent.VK_LEFT))  moveX -= 1;
-        if (input.isPressed(java.awt.event.KeyEvent.VK_D) || input.isPressed(java.awt.event.KeyEvent.VK_RIGHT)) moveX += 1;
+        if (input.isPressed(java.awt.event.KeyEvent.VK_W) || input.isPressed(java.awt.event.KeyEvent.VK_UP))    moveY -= 2;
+        if (input.isPressed(java.awt.event.KeyEvent.VK_S) || input.isPressed(java.awt.event.KeyEvent.VK_DOWN))  moveY += 2;
+        if (input.isPressed(java.awt.event.KeyEvent.VK_A) || input.isPressed(java.awt.event.KeyEvent.VK_LEFT))  moveX -= 2;
+        if (input.isPressed(java.awt.event.KeyEvent.VK_D) || input.isPressed(java.awt.event.KeyEvent.VK_RIGHT)) moveX += 2;
 
         if (moveX != 0 && moveY != 0) {
             double inv = 1.0 / Math.sqrt(2);

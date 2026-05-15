@@ -1895,7 +1895,6 @@ public class GamePanel extends JPanel implements Runnable {
     private World[] createWorlds() {
         String aldrichBase = findAldrichSpriteBaseDir();
         World[] built = new World[]{
-                new World("Test Map", 15, 14, TILE_SIZE, 7, 7, new Npc[]{}),
                 new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{
                         new Npc(
                                 "Professor Alfred",
@@ -2023,7 +2022,6 @@ public class GamePanel extends JPanel implements Runnable {
             battleSystem.render(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
         } else {
             current.renderTiles(scene, camera, TILE_SIZE, LOGICAL_WIDTH, LOGICAL_HEIGHT, windTimeSeconds);
-            current.renderWindLines(scene, camera, LOGICAL_WIDTH, LOGICAL_HEIGHT, windTimeSeconds);
             current.drawStructuresBefore(scene, camera, (int) player.getY() + player.getSize());
             for (Npc npc : current.getNpcs()) {
                 if ("Glitch".equalsIgnoreCase(npc.getName()) && announcerDialogueActive) continue;

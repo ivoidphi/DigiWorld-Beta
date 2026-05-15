@@ -11,11 +11,6 @@ public final class WorldTileMapRegistry {
             return;
         }
         String name = world.getName();
-        if ("Test Map".equalsIgnoreCase(name)) {
-            TestTilesetTileMap map = new TestTilesetTileMap();
-            map.applyTo(world);
-            return;
-        }
         if ("Hometown".equalsIgnoreCase(name)) {
             HometownTileMap map = new HometownTileMap(world.getWidth(), world.getHeight());
             map.buildBase();

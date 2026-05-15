@@ -652,7 +652,7 @@ public class BattleSystem {
         }
         double maxHp = Math.max(1, enemyCreature.getMaxHp());
         double currentHp = Math.max(1, enemyCreature.getHp());
-        double rawChance = (((3.0 * maxHp - 2.0 * currentHp) * 1.0) / (3.0 * maxHp)) * 0.75;
+        double rawChance = (((3.0 * maxHp - 2.0 * currentHp) * 1.0) / (3.0 * maxHp)) * 1.5;
         int catchChance = (int) Math.round(Math.max(0.05, Math.min(0.95, rawChance)) * 100.0);
         if (random.nextInt(100) < catchChance) {
             pendingCaughtCreature = enemyCreature;

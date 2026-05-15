@@ -23,24 +23,11 @@ public class World {
     private static final BufferedImage TILE_GRASS3 = loadTile("res/tiles/grass3.png");
     private static final BufferedImage TILE_GRASS_BUSH = loadTile("res/tiles/grassbush.png");
     private static final BufferedImage TILE_WATER = loadTile("res/tiles/water.png");
-    private final double[][] windStreaks;
     private final boolean corrupted;
     private static final Random corruptionRandom = new Random();
 
-    private digiworld.maps.OgmoMap ogmoMap;
-    private final java.util.Map<String, digiworld.maps.TileSet> tileSets = new java.util.HashMap<>();
 
-    public void setOgmoMap(digiworld.maps.OgmoMap map) {
-        this.ogmoMap = map;
-    }
-    public digiworld.maps.OgmoMap getOgmoMap() { return ogmoMap; }
 
-    public void addTileSet(String name, digiworld.maps.TileSet tileSet) {
-        tileSets.put(name.toLowerCase(), tileSet);
-    }
-    public digiworld.maps.TileSet getTileSet(String name) {
-        return tileSets.get(name.toLowerCase());
-    }
 
     public boolean isCorrupted() {
         return corrupted;
@@ -61,7 +48,6 @@ public class World {
         this.spawnTileY = spawnTileY;
         this.tiles = new TileType[height][width];
         this.npcs = npcs;
-        this.windStreaks = createWindStreaks(width, height, tileSize, name.hashCode());
         buildMap(tileSize);
     }
 
@@ -313,49 +299,9 @@ public class World {
         }
     }
 
-    private void renderOgmoLayers(Graphics2D g2d, Camera camera, int tileSize) {
-        if (ogmoMap == null || ogmoMap.getLayers() == null) return;
 
-        int camX = camera.getX();
-        int camY = camera.getY();
-
-        for (digiworld.maps.OgmoMap.Layer layer : ogmoMap.getLayers()) {
-            String tilesetName = layer.getTileset();
-            if (tilesetName == null) continue;
-
-            digiworld.maps.TileSet tileSet = tileSets.get(tilesetName.toLowerCase());
-            if (tileSet == null || tileSet.getImage() == null) continue;
-
-            int gridCellsX = layer.getGridCellsX();
-            int gridCellsY = layer.getGridCellsY();
-
-            int startX = Math.max(0, camX / tileSize);
-            int startY = Math.max(0, camY / tileSize);
-            int endX = Math.min(gridCellsX - 1, (camX + g2d.getDeviceConfiguration().getBounds().width) / tileSize + 1);
-            int endY = Math.min(gridCellsY - 1, (camY + g2d.getDeviceConfiguration().getBounds().height) / tileSize + 1);
-
-            for (int y = startY; y <= endY; y++) {
-                for (int x = startX; x <= endX; x++) {
-                    int tileId = layer.getTileId(x, y);
-                    if (tileId < 0) continue;
-
-                    BufferedImage tile = tileSet.getTile(tileId);
-                    if (tile == null) continue;
-
-                    int drawX = x * tileSize - camX;
-                    int drawY = y * tileSize - camY;
-                    g2d.drawImage(tile, drawX, drawY, null);
-                }
-            }
-        }
-    }
 
     public void renderTiles(Graphics2D g2d, Camera camera, int tileSize, int viewportWidth, int viewportHeight, double windTimeSeconds) {
-        if (ogmoMap != null) {
-            renderOgmoLayers(g2d, camera, tileSize);
-            return;
-        }
-
         int startTileX = Math.max(0, camera.getX() / tileSize);
         int startTileY = Math.max(0, camera.getY() / tileSize);
         int endTileX = Math.min(getWidth() - 1, (camera.getX() + viewportWidth) / tileSize + 1);
@@ -416,35 +362,7 @@ public class World {
         }
     }
 
-    public void renderWindLines(Graphics2D g2d, Camera camera, int viewportWidth, int viewportHeight, double windTimeSeconds) {
-        int camX = camera.getX();
-        int camY = camera.getY();
-        g2d.setColor(new Color(255, 255, 255, 36));
-        for (double[] s : windStreaks) {
-            double worldX = s[0];
-            double worldY = s[1];
-            double baseLen = s[2];
-            double speed = s[3];
-            double phase = s[4];
-            double amplitude = s[5];
 
-            double maxWidthPx = s[6];
-            double flowX = worldX + ((windTimeSeconds * speed) % maxWidthPx);
-            while (flowX >= maxWidthPx) {
-                flowX -= maxWidthPx;
-            }
-
-            int sx = (int) Math.round(flowX) - camX;
-            int sy = (int) Math.round(worldY + Math.sin(windTimeSeconds * 2.4 + phase) * amplitude) - camY;
-            int ex = sx + (int) Math.round(baseLen);
-            int ey = sy + (int) Math.round(Math.sin(windTimeSeconds * 4.2 + phase) * 2.0);
-
-            if (ex < 0 || sx > viewportWidth || sy < -6 || sy > viewportHeight + 6) {
-                continue;
-            }
-            g2d.drawLine(sx, sy, ex, ey);
-        }
-    }
 
     public TileType getTile(int x, int y) {
         if (x < 0 || y < 0 || y >= tiles.length || x >= tiles[0].length) {
@@ -526,23 +444,5 @@ public class World {
         } catch (IOException e) {
             return null;
         }
-    }
-
-    private static double[][] createWindStreaks(int widthTiles, int heightTiles, int tileSize, int seed) {
-        int count = Math.max(30, (widthTiles * heightTiles) / 50);
-        double[][] streaks = new double[count][7];
-        Random random = new Random(seed * 31L + 7L);
-        double worldWidth = widthTiles * tileSize;
-        double worldHeight = heightTiles * tileSize;
-        for (int i = 0; i < count; i++) {
-            streaks[i][0] = random.nextDouble() * worldWidth;
-            streaks[i][1] = random.nextDouble() * worldHeight;
-            streaks[i][2] = 16 + random.nextDouble() * 24;
-            streaks[i][3] = 22 + random.nextDouble() * 40;
-            streaks[i][4] = random.nextDouble() * Math.PI * 2.0;
-            streaks[i][5] = 1.0 + random.nextDouble() * 3.0;
-            streaks[i][6] = worldWidth;
-        }
-        return streaks;
     }
 }
