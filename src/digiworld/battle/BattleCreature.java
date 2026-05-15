@@ -25,6 +25,9 @@ public class BattleCreature {
     private int attackModifierTurns;
     private double defenseModifier;
     private int defenseModifierTurns;
+    private double permanentAttackModifier;
+    private double permanentDefenseModifier;
+    private double permanentMaxHpModifier;
 
     public BattleCreature(String name, int maxHp, int attack, int defense) {
         this(name, maxHp, attack, defense, 80, 100, 12, BeastElement.NEUTRAL, 1);
@@ -48,6 +51,9 @@ public class BattleCreature {
         this.attackModifierTurns = 0;
         this.defenseModifier = 1.0;
         this.defenseModifierTurns = 0;
+        this.permanentAttackModifier = 1.0;
+        this.permanentDefenseModifier = 1.0;
+        this.permanentMaxHpModifier = 1.0;
         this.hp = getMaxHp();
     }
 
@@ -85,12 +91,32 @@ public class BattleCreature {
         clearStatModifiers();
     }
 
+    public void healByPercent(double percent) {
+        int amount = (int) Math.round(getMaxHp() * Math.max(0.0, Math.min(1.0, percent)));
+        heal(amount);
+    }
+
+    public void boostPermanentAttack(double percent) {
+        permanentAttackModifier = 1.0 + Math.max(0.0, percent);
+    }
+
+    public void boostPermanentDefense(double percent) {
+        permanentDefenseModifier = 1.0 + Math.max(0.0, percent);
+    }
+
+    public void boostPermanentMaxHp(double percent) {
+        double oldMax = getMaxHp();
+        permanentMaxHpModifier = 1.0 + Math.max(0.0, percent);
+        hp = (int) Math.round(hp * (getMaxHp() / oldMax));
+    }
+
     public String getName() {
         return name;
     }
 
     public int getMaxHp() {
-        return ((2 * baseHp) * level / 20) + level + 10;
+        int base = ((2 * baseHp) * level / 20) + level + 10;
+        return (int) Math.round(base * permanentMaxHpModifier);
     }
 
     public int getHp() {
@@ -99,12 +125,14 @@ public class BattleCreature {
 
     public int getAttack() {
         int stat = ((2 * baseAttack) * level / 20) + 5;
-        return Math.max(1, (int) Math.round(stat * attackModifier));
+        double combined = attackModifier * permanentAttackModifier;
+        return Math.max(1, (int) Math.round(stat * combined));
     }
 
     public int getDefense() {
         int stat = ((2 * baseDefense) * level / 20) + 5;
-        return Math.max(1, (int) Math.round(stat * defenseModifier));
+        double combined = defenseModifier * permanentDefenseModifier;
+        return Math.max(1, (int) Math.round(stat * combined));
     }
 
     public int getSpeed() {

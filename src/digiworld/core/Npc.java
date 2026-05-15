@@ -28,6 +28,11 @@ public class Npc extends Entity {
     private final BufferedImage spriteLeft;
     private final BufferedImage spriteRight;
     private boolean interactionLocked;
+    private boolean grayscale;
+    private BufferedImage grayForward;
+    private BufferedImage grayBack;
+    private BufferedImage grayLeft;
+    private BufferedImage grayRight;
 
     public Npc(String name, int size, int tileSize, Color color, int[][] patrolPoints) {
         this(name, size, tileSize, color, patrolPoints, null, null, null, null);
@@ -143,6 +148,16 @@ public class Npc extends Entity {
         interactionLocked = false;
     }
 
+    public void setGrayscale(boolean grayscale) {
+        this.grayscale = grayscale;
+        if (grayscale) {
+            if (grayForward == null && spriteForward != null) grayForward = toGrayscale(spriteForward);
+            if (grayBack == null && spriteBack != null) grayBack = toGrayscale(spriteBack);
+            if (grayLeft == null && spriteLeft != null) grayLeft = toGrayscale(spriteLeft);
+            if (grayRight == null && spriteRight != null) grayRight = toGrayscale(spriteRight);
+        }
+    }
+
     @Override
     public void render(Graphics2D g2d, Camera camera) {
         BufferedImage activeSprite = getActiveSprite();
@@ -165,6 +180,14 @@ public class Npc extends Entity {
     }
 
     private BufferedImage getActiveSprite() {
+        if (grayscale) {
+            return switch (facing) {
+                case FORWARD -> grayForward;
+                case BACK -> grayBack;
+                case LEFT -> grayLeft;
+                case RIGHT -> grayRight;
+            };
+        }
         return switch (facing) {
             case FORWARD -> spriteForward;
             case BACK -> spriteBack;
@@ -182,5 +205,24 @@ public class Npc extends Entity {
         } catch (IOException e) {
             return null;
         }
+    }
+
+    private static BufferedImage toGrayscale(BufferedImage source) {
+        int width = source.getWidth();
+        int height = source.getHeight();
+        BufferedImage gray = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        int[] pixels = new int[width * height];
+        source.getRGB(0, 0, width, height, pixels, 0, width);
+        for (int i = 0; i < pixels.length; i++) {
+            int argb = pixels[i];
+            int a = (argb >> 24) & 0xFF;
+            int r = (argb >> 16) & 0xFF;
+            int g = (argb >> 8) & 0xFF;
+            int b = argb & 0xFF;
+            int grayLevel = (r + g + b) / 3;
+            pixels[i] = (a << 24) | (grayLevel << 16) | (grayLevel << 8) | grayLevel;
+        }
+        gray.setRGB(0, 0, width, height, pixels, 0, width);
+        return gray;
     }
 }

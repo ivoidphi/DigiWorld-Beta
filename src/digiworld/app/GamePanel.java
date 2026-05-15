@@ -223,6 +223,8 @@ public class GamePanel extends JPanel implements Runnable {
 
         camera = new Camera();
         worlds = createWorlds();
+        Npc glitch = findNpcByName(worlds[3], "Glitch");
+        if (glitch != null) glitch.setGrayscale(true);
         battleSystem = new BattleSystem();
         soundManager = SoundManager.getInstance();
         battleSystem.setSoundManager(soundManager);
@@ -410,6 +412,12 @@ public class GamePanel extends JPanel implements Runnable {
                 battleSystem.handleClick(pendingClickX, pendingClickY);
                 clickPending = false;
             }
+            if (input.consumeJustPressed(KeyEvent.VK_F)) {
+                previousState = GameState.BATTLE;
+                gameState = GameState.ITEMS_INVENTORY;
+                interactionMessage = "";
+                return;
+            }
             battleSystem.update(deltaSeconds);
             String result = battleSystem.handleInput(input);
             if (!battleSystem.isActive()) {
@@ -452,6 +460,10 @@ public class GamePanel extends JPanel implements Runnable {
             }
         } else if (gameState == GameState.INVENTORY) {
             handleInventoryInput();
+        } else if (gameState == GameState.ITEMS_INVENTORY) {
+            handleItemsInventoryInput();
+        } else if (gameState == GameState.SHOP) {
+            handleShopInput();
         } else if (gameState == GameState.NPC_MENU) {
             handleMenuInput();
         } else if (gameState == GameState.DIALOGUE) {
@@ -477,6 +489,11 @@ public class GamePanel extends JPanel implements Runnable {
 
             if (input.consumeJustPressed(KeyEvent.VK_B)) {
                 gameState = GameState.INVENTORY;
+                interactionMessage = "";
+                return;
+            }
+            if (input.consumeJustPressed(KeyEvent.VK_F)) {
+                gameState = GameState.ITEMS_INVENTORY;
                 interactionMessage = "";
                 return;
             }
@@ -707,7 +724,7 @@ public class GamePanel extends JPanel implements Runnable {
         } else if (npcName.contains("aldrich") || npcName.contains("alpha")) {
             handleAldrichDialogue(npc);
         } else if (npcName.contains("boss rhonn") || npcName.contains("shopkeeper")) {
-            handleShopkeeperDialogue(npc);
+            openShop(npc);
         } else if (npcName.contains("glitch")) {
             handleGlitchDialogue(npc);
         } else {
@@ -935,13 +952,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
-    private void handleShopkeeperDialogue(Npc npc) {
-        DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Boss Rhonn"},
-                new String[]{"Welcome to my shop. Take a look at what I have."}
-        );
-        startDialogue(script, null);
-    }
+
 
     private void handleGlitchDialogue(Npc npc) {
         if (!questManager.isStage(QuestManager.STAGE_TOURNAMENT_STARTED)) {
@@ -1335,6 +1346,123 @@ public class GamePanel extends JPanel implements Runnable {
         if (input.consumeJustPressed(KeyEvent.VK_E) || input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
             interactionMessage = inventory.toggleEquippedSelected();
         }
+    }
+
+    private void handleItemsInventoryInput() {
+        if (input.consumeJustPressed(KeyEvent.VK_ESCAPE) || input.consumeJustPressed(KeyEvent.VK_B)) {
+            gameState = previousState != null ? previousState : GameState.EXPLORATION;
+            previousState = null;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_UP) || input.consumeJustPressed(KeyEvent.VK_W)) {
+            inventory.moveItemSelection(-1);
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_DOWN) || input.consumeJustPressed(KeyEvent.VK_S)) {
+            inventory.moveItemSelection(1);
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+            useSelectedItem();
+        }
+    }
+
+    private void useSelectedItem() {
+        String[] names = inventory.getItemNames();
+        int idx = inventory.getItemInvSelectedIndex();
+        if (names == null || idx < 0 || idx >= names.length) return;
+        String name = names[idx];
+        ItemType type = ItemType.fromDisplayName(name);
+        if (type == null) return;
+
+        BattleCreature[] beasts = battleSystem.getPlayerCreatures();
+        if (beasts == null || beasts.length == 0) {
+            interactionMessage = "No beasts to use item on.";
+            return;
+        }
+
+        if (!inventory.removeItemCount(name, 1)) {
+            interactionMessage = "No " + name + " left.";
+            return;
+        }
+
+        switch (type.effect()) {
+            case HEAL_PERCENT -> {
+                for (BattleCreature b : beasts) {
+                    if (b != null) b.healByPercent(type.value());
+                }
+                interactionMessage = "Used " + name + ". All beasts healed by " + (int)(type.value() * 100) + "% HP.";
+            }
+            case BUFF_ATTACK -> {
+                for (BattleCreature b : beasts) {
+                    if (b != null) b.boostPermanentAttack(type.value());
+                }
+                interactionMessage = "Used " + name + ". All beasts Attack +" + (int)(type.value() * 100) + "%.";
+            }
+            case BUFF_DEFENSE -> {
+                for (BattleCreature b : beasts) {
+                    if (b != null) b.boostPermanentDefense(type.value());
+                }
+                interactionMessage = "Used " + name + ". All beasts Defense +" + (int)(type.value() * 100) + "%.";
+            }
+            case BUFF_MAX_HP -> {
+                for (BattleCreature b : beasts) {
+                    if (b != null) b.boostPermanentMaxHp(type.value());
+                }
+                interactionMessage = "Used " + name + ". All beasts Max HP +" + (int)(type.value() * 100) + "%.";
+            }
+        }
+
+        if (inventory.getItemCount(name) > 0) {
+            inventory.setItemInvSelectedIndex(Math.min(idx, inventory.getItemNames().length - 1));
+        }
+    }
+
+    private int shopSelectedIndex;
+    private Npc shopNpc;
+    private GameState previousState;
+
+    private void openShop(Npc npc) {
+        shopNpc = npc;
+        shopSelectedIndex = 0;
+        gameState = GameState.SHOP;
+        interactionMessage = "Welcome to the shop! Select an item to buy.";
+    }
+
+    private void handleShopInput() {
+        if (input.consumeJustPressed(KeyEvent.VK_ESCAPE) || input.consumeJustPressed(KeyEvent.VK_E)) {
+            gameState = GameState.EXPLORATION;
+            if (activeNpc != null) {
+                activeNpc.endInteraction();
+                activeNpc = null;
+            }
+            interactionMessage = "Thanks for visiting!";
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_UP) || input.consumeJustPressed(KeyEvent.VK_W)) {
+            shopSelectedIndex = (shopSelectedIndex - 1 + ItemType.values().length) % ItemType.values().length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_DOWN) || input.consumeJustPressed(KeyEvent.VK_S)) {
+            shopSelectedIndex = (shopSelectedIndex + 1) % ItemType.values().length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+            purchaseSelectedItem();
+        }
+    }
+
+    private void purchaseSelectedItem() {
+        ItemType[] items = ItemType.values();
+        if (shopSelectedIndex < 0 || shopSelectedIndex >= items.length) return;
+        ItemType selected = items[shopSelectedIndex];
+        if (coins < selected.price()) {
+            interactionMessage = "Not enough coins! Need " + selected.price() + " coins for " + selected.displayName() + ".";
+            return;
+        }
+        coins -= selected.price();
+        inventory.addItemCount(selected.displayName(), 1);
+        interactionMessage = "Purchased " + selected.displayName() + " for " + selected.price() + " coins.";
     }
 
     // --- LEVEL UP SYSTEM FIX: Uses actual trained BattleCreature objects ---
@@ -1888,6 +2016,13 @@ public class GamePanel extends JPanel implements Runnable {
         data.put("coins", String.valueOf(coins));
         data.put("ownedBeasts", String.join(",", inventory.getOwnedBeastNames()));
         data.put("equippedBeasts", String.join(",", inventory.getEquippedBeastNames()));
+        String itemData = "";
+        for (String item : inventory.getItemNames()) {
+            int count = inventory.getItemCount(item);
+            if (count > 0) itemData += item + ":" + count + ",";
+        }
+        if (itemData.endsWith(",")) itemData = itemData.substring(0, itemData.length() - 1);
+        data.put("items", itemData);
         SaveManager.save(data);
     }
 
@@ -1915,6 +2050,16 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/gen-ed/gened-b.png",
                                 "res/characters/gen-ed/gened-l.png",
                                 "res/characters/gen-ed/gened-r.png"
+                        ),
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{12, 18}, {12, 17}, {15, 17}, {15, 17}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
                 new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
@@ -1942,6 +2087,16 @@ public class GamePanel extends JPanel implements Runnable {
                                 aldrichBase + "/aldrich-b.png",
                                 aldrichBase + "/aldrich-l.png",
                                 aldrichBase + "/aldrich-r.png"
+                        ),
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{20, 25}, {20, 25}, {20, 25}, {20, 25}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
                 new World("World 3 - Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
@@ -1964,6 +2119,16 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/trialmaster/trialmaster-b.png",
                                 "res/characters/trialmaster/trialmaster-l.png",
                                 "res/characters/trialmaster/trialmaster-r.png"
+                        ),
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{36, 25}, {36, 25}, {36, 25}, {36, 25}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
                 new World("Corrupted Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
@@ -1976,9 +2141,30 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/glitch-ron/glitchron-b.png",
                                 "res/characters/glitch-ron/glitchron-l.png",
                                 "res/characters/glitch-ron/glitchron-r.png"
+                        ),
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{35, 15}, {32, 15}, {35, 20}, {33, 18}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
-                new World("House 1", 46, 36, TILE_SIZE, 25, 19, new Npc[]{})
+                new World("House 1", 46, 36, TILE_SIZE, 25, 19, new Npc[]{
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{22, 18}, {22, 18}, {22, 18}, {22, 18}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
+                        )
+                })
         };
         for (World world : built) {
             WorldTileMapRegistry.apply(world);
@@ -2052,6 +2238,10 @@ public class GamePanel extends JPanel implements Runnable {
             }
             if (gameState == GameState.INVENTORY) {
                 inventory.render(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+            } else if (gameState == GameState.ITEMS_INVENTORY) {
+                inventory.renderItemsInventory(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+            } else if (gameState == GameState.SHOP) {
+                drawShop(scene);
             } else if (gameState == GameState.STARTER_SELECT) {
                 drawRpgBeastSelection(scene, "Professor Alfred", "Choose 3 out of 10 Mecha Beasts", starterChoices, starterSelectionIndex);
             } else if (gameState == GameState.ENEMY_SELECT) {
@@ -2331,6 +2521,49 @@ public class GamePanel extends JPanel implements Runnable {
                 activeNpc != null && hasDialogue(activeNpc),
                 hasSeenDialogue(activeNpc)
         );
+    }
+
+    private void drawShop(Graphics2D g2d) {
+        int boxWidth = Math.min(620, LOGICAL_WIDTH - 70);
+        int boxHeight = Math.min(400, LOGICAL_HEIGHT - 80);
+        int x = (LOGICAL_WIDTH - boxWidth) / 2;
+        int y = (LOGICAL_HEIGHT - boxHeight) / 2;
+
+        g2d.setColor(new Color(0, 0, 0, 220));
+        g2d.fillRoundRect(x, y, boxWidth, boxHeight, 10, 10);
+        g2d.setColor(Color.WHITE);
+        g2d.drawRoundRect(x, y, boxWidth, boxHeight, 10, 10);
+        g2d.setFont(UIFont.regular(12f));
+        g2d.drawString("Shop - Coins: " + coins, x + 14, y + 24);
+        g2d.drawString("Up/Down: Navigate  ENTER: Buy  ESC: Leave", x + 14, y + boxHeight - 12);
+
+        int listStartY = y + 50;
+        ItemType[] items = ItemType.values();
+        for (int i = 0; i < items.length; i++) {
+            int rowY = listStartY + i * 24;
+            if (rowY > y + boxHeight - 30) break;
+
+            if (i == shopSelectedIndex) {
+                g2d.setColor(new Color(255, 255, 255, 45));
+                g2d.fillRoundRect(x + 10, rowY - 13, boxWidth - 20, 22, 6, 6);
+                g2d.setColor(Color.WHITE);
+            } else {
+                g2d.setColor(new Color(220, 220, 220));
+            }
+
+            boolean canAfford = coins >= items[i].price();
+            if (!canAfford) g2d.setColor(new Color(180, 100, 100));
+
+            String line = (i + 1) + ". " + items[i].displayName() + " - " + items[i].price() + "c";
+            g2d.drawString(line, x + 16, rowY);
+
+            if (i == shopSelectedIndex) {
+                g2d.setColor(new Color(180, 180, 180));
+                g2d.setFont(UIFont.regular(10f));
+                g2d.drawString(items[i].description(), x + 16, rowY + 16);
+                g2d.setFont(UIFont.regular(12f));
+            }
+        }
     }
 
     private boolean canTeleportNext(Npc npc, World world) {
