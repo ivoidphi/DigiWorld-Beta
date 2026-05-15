@@ -178,30 +178,13 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean aldrichObjectiveTriggered;
     private boolean pendingStage1ReturnCutscene;
     private boolean pendingBetaIntroDialogue;
-    private static final int HOMETOWN_TELEPORT_DOOR_TILE_X = 29;
-    private static final int HOMETOWN_TELEPORT_DOOR_TILE_Y = 17;
+    private static final int HOMETOWN_TELEPORT_DOOR_TILE_X = HometownTileMap.TELEPORTER_X;
+    private static final int HOMETOWN_TELEPORT_DOOR_TILE_Y = HometownTileMap.TELEPORTER_Y;
+    private static final int HOMETOWN_TELEPORT_DOOR_WIDTH_TILES = HometownTileMap.TELEPORTER_WIDTH_TILES;
+    private static final int HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES = HometownTileMap.TELEPORTER_HEIGHT_TILES;
     private boolean teleportDoorLockedMessageShown;
     private boolean teleportInProgress;
     private double teleportDoorProximity;
-
-    private boolean corruptionCutsceneActive;
-    private double corruptionCutsceneTimer;
-    private double corruptionShakeIntensity;
-    private double corruptionGlitchIntensity;
-    private double corruptionFadeProgress;
-    private boolean corruptionMapLoaded;
-
-    private boolean announcerDialogueActive;
-    private DialogueController announcerDialogueController;
-    private String[] announcerSpeakers;
-    private String[] announcerLines;
-    private int announcerPageIndex;
-
-    private boolean sequentialBattlesActive;
-    private int sequentialBattleIndex;
-    private String[] sequentialBattleOrder;
-
-    private double worldBannerTimer;
     private double worldBannerAlpha;
 
     public GamePanel() {
@@ -231,8 +214,8 @@ public class GamePanel extends JPanel implements Runnable {
         uiRenderer = new GameUiRenderer(LOGICAL_WIDTH, LOGICAL_HEIGHT, PLAYER_NAME, battleSystem);
         inventory = new Inventory();
         random = new Random();
-        worldIndex = 0;
-        player = new Player(worlds[0].getSpawnTileX() * TILE_SIZE, worlds[0].getSpawnTileY() * TILE_SIZE, TILE_SIZE, input, TILE_SIZE);
+        worldIndex = WorldIndex.HOMETOWN;
+        player = new Player(worlds[worldIndex].getSpawnTileX() * TILE_SIZE, worlds[worldIndex].getSpawnTileY() * TILE_SIZE, TILE_SIZE, input, TILE_SIZE);
         doorManager = new DoorManager(this, TILE_SIZE);
         player.setDoorManager(doorManager);
         frameBuffer = new BufferedImage(LOGICAL_WIDTH, LOGICAL_HEIGHT, BufferedImage.TYPE_INT_ARGB);
@@ -332,26 +315,7 @@ public class GamePanel extends JPanel implements Runnable {
         teleportDoorLockedMessageShown = false;
         teleportInProgress = false;
         teleportDoorProximity = 0.0;
-
-        corruptionCutsceneActive = false;
-        corruptionCutsceneTimer = 0.0;
-        corruptionShakeIntensity = 0.0;
-        corruptionGlitchIntensity = 0.0;
-        corruptionFadeProgress = 0.0;
-        corruptionMapLoaded = false;
-
-        announcerDialogueActive = false;
-        announcerDialogueController = new DialogueController();
-        announcerSpeakers = null;
-        announcerLines = null;
-        announcerPageIndex = 0;
-
-        sequentialBattlesActive = false;
-        sequentialBattleIndex = 0;
-        sequentialBattleOrder = null;
-
-        worldBannerTimer = 0.0;
-        worldBannerAlpha = 0.0;
+        worldBannerAlpha = 1.0;
         soundManager.playWorldMusic(worlds[worldIndex].getName());
     }
 
@@ -393,8 +357,6 @@ public class GamePanel extends JPanel implements Runnable {
             saveProgress();
         }
         updateObjectiveTransition(deltaSeconds);
-        updateCorruptionCutscene(deltaSeconds);
-        updateAnnouncerDialogue(deltaSeconds);
         World current = worlds[worldIndex];
 
         if (fadeAlpha > 0.001) {
@@ -448,15 +410,13 @@ public class GamePanel extends JPanel implements Runnable {
                 } else if (bossArenaActive && !bossWon) {
                     handleBossDefeat();
                 }
-                if (gameState == GameState.BATTLE && !battleSystem.isActive()) {
+                if (gameState == GameState.BATTLE) {
                     gameState = GameState.EXPLORATION;
                     interactionMenuOpen = false;
                     activeNpc = null;
                 }
-                if (!battleSystem.isActive()) {
-                    interactionMessage = vineratopsJustWon ? "Wild Vineratops defeated." : (bossArenaActive ? interactionMessage : msg);
-                    soundManager.playWorldMusic(current.getName());
-                }
+                interactionMessage = vineratopsJustWon ? "Wild Vineratops defeated." : (bossArenaActive ? interactionMessage : msg);
+                soundManager.playWorldMusic(current.getName());
             }
         } else if (gameState == GameState.INVENTORY) {
             handleInventoryInput();
@@ -522,10 +482,6 @@ public class GamePanel extends JPanel implements Runnable {
             checkBossTrigger(current);
             maybeStartAlphaArrivalDialogue(current);
             updateAldrichProximityObjective(current);
-            updateTrialmasterProximityObjective(current);
-            if (battledWoltrix && questManager.isStage(QuestManager.STAGE_REACHED_GLITCH_AREA)) {
-                handleGlitchBossVictory();
-            }
             refreshObjectiveFromProgress();
         }
 
@@ -735,7 +691,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void handleProfAlfredDialogue(Npc npc, String worldName) {
-        if (worldName.contains("hometown")) {
+        if (worldName.contains("hometown") || worldName.contains("laboratory")) {
             if (questManager.isStage(QuestManager.STAGE_GAME_START)) {
                 DialogueSequence script = DialogueFactory.createSequence(
                         new String[]{"Professor Alfred", "Professor Alfred", "Professor Alfred", PLAYER_NAME},
@@ -798,7 +754,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void handleGenEdDialogue(Npc npc, String worldName) {
-        if (worldName.contains("hometown")) {
+        if (worldName.contains("hometown") || worldName.contains("house 1")) {
             if (!questManager.isStage(QuestManager.STAGE_TALKED_PROF)) {
                 showNpcSpeechBubble(npc, "You should speak with Professor Alfred first.", 2.0);
                 npc.endInteraction();
@@ -955,23 +911,20 @@ public class GamePanel extends JPanel implements Runnable {
 
 
     private void handleGlitchDialogue(Npc npc) {
-        if (!questManager.isStage(QuestManager.STAGE_TOURNAMENT_STARTED)) {
+        if (!questManager.isStage(QuestManager.STAGE_REACHED_GLITCH_AREA)) {
             showNpcSpeechBubble(npc, "You are not ready yet.", 2.0);
             npc.endInteraction();
             activeNpc = null;
             return;
         }
-        questManager.setQuestStage(QuestManager.STAGE_REACHED_GLITCH_AREA);
-        setObjective("Defeat Glitch");
         DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Unknown Speaker", "Player", "Glitch"},
+                new String[]{"Glitch", PLAYER_NAME},
                 new String[]{
-                        "Call me Glitch. I'm the real-world savior. If you win, I'll stop. If I win, I want your autograph.",
-                        "Let's do this then!",
-                        "But you will have to fight my beasts first!"
+                        "Call me Glitch. If you win, I stop. If I win, I want your autograph.",
+                        "Let's do this then!"
                 }
         );
-        startDialogue(script, "START_SEQUENTIAL_BATTLES");
+        startDialogue(script, "START_BOSS:glitch|SET_OBJECTIVE:Defeat Glitch");
     }
 
     private String postDialogueAction;
@@ -1063,7 +1016,6 @@ public class GamePanel extends JPanel implements Runnable {
                         startBossBattle(worlds[worldIndex], "Kingmantis");
                     }
                     case "trialmaster" -> startBossBattle(worlds[worldIndex], "Voltchu");
-                    case "glitch_woltrix" -> startBossBattle(worlds[worldIndex], "Woltrix");
                 }
             } else if (action.startsWith("GIVE_ITEM:")) {
                 String item = action.substring("GIVE_ITEM:".length());
@@ -1085,12 +1037,6 @@ public class GamePanel extends JPanel implements Runnable {
             } else if (action.equals("STAGE2_TRANSPORT_TO_BETA")) {
                 pendingBetaIntroDialogue = true;
                 beginBetaCityPreparationTransition();
-            } else if (action.equals("TRIGGER_ENDING")) {
-                triggerEndingSequence();
-            } else if (action.equals("START_CORRUPTION_CUTSCENE")) {
-                startCorruptionCutscene();
-            } else if (action.equals("START_SEQUENTIAL_BATTLES")) {
-                startSequentialBattles();
             }
         }
 
@@ -1143,11 +1089,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private Npc getNearbyNpc(World world) {
-        Npc npc = world.getClosestNpcInRange(player.getCenterX(), player.getCenterY(), INTERACT_DISTANCE);
-        if (npc != null && "Glitch".equalsIgnoreCase(npc.getName()) && announcerDialogueActive) {
-            return null;
-        }
-        return npc;
+        return world.getClosestNpcInRange(player.getCenterX(), player.getCenterY(), INTERACT_DISTANCE);
     }
 
     private void handleMenuInput() {
@@ -1563,10 +1505,9 @@ public class GamePanel extends JPanel implements Runnable {
         if (targetWorldIndex == 2) {
             return pendingBetaIntroDialogue || questManager.atLeast(QuestManager.STAGE_RETURNED_TO_LAB);
         }
-        if (targetWorldIndex == 3) {
-            return questManager.atLeast(QuestManager.STAGE_DEFEATED_TRIALMASTER);
-        }
-        if (targetWorldIndex == WorldIndex.HOUSE_1) {
+        if (targetWorldIndex == WorldIndex.HOUSE_1
+                || targetWorldIndex == WorldIndex.LABORATORY
+                || targetWorldIndex == WorldIndex.HOUSE) {
             return true;
         }
         return false;
@@ -1578,8 +1519,10 @@ public class GamePanel extends JPanel implements Runnable {
             teleportDoorLockedMessageShown = false;
             return;
         }
-        int centerX = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE + TILE_SIZE / 2;
-        int centerY = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE + TILE_SIZE;
+        int centerX = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE
+                + HOMETOWN_TELEPORT_DOOR_WIDTH_TILES * TILE_SIZE / 2;
+        int centerY = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE
+                + HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES * TILE_SIZE / 2;
         double dx = player.getCenterX() - centerX;
         double dy = player.getCenterY() - centerY;
         double distance = Math.sqrt(dx * dx + dy * dy);
@@ -1593,7 +1536,10 @@ public class GamePanel extends JPanel implements Runnable {
                 interactionMessage = "Teleport Door is locked. Complete Professor Alfred's setup first.";
                 teleportDoorLockedMessageShown = true;
             }
-            player.teleportToTile(HOMETOWN_TELEPORT_DOOR_TILE_X + 1, HOMETOWN_TELEPORT_DOOR_TILE_Y + 2);
+            player.teleportToTile(
+                    HOMETOWN_TELEPORT_DOOR_TILE_X,
+                    HOMETOWN_TELEPORT_DOOR_TILE_Y + HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES
+            );
             return;
         }
         if (!teleportInProgress && gameState == GameState.EXPLORATION) {
@@ -1707,8 +1653,8 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean isInsideTeleportDoorTrigger() {
         int doorX = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE;
         int doorY = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE;
-        int triggerW = TILE_SIZE * 2;
-        int triggerH = TILE_SIZE * 2;
+        int triggerW = TILE_SIZE * HOMETOWN_TELEPORT_DOOR_WIDTH_TILES;
+        int triggerH = TILE_SIZE * HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES;
         int px = player.getCenterX();
         int py = player.getCenterY();
         return px >= doorX && px <= doorX + triggerW && py >= doorY && py <= doorY + triggerH;
@@ -1720,23 +1666,19 @@ public class GamePanel extends JPanel implements Runnable {
         }
         int x = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE - camera.getX();
         int y = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE - camera.getY();
-        int w = TILE_SIZE * 2;
-        int h = TILE_SIZE * 2;
-        g2d.setColor(new Color(0, 0, 0, 210));
+        int w = TILE_SIZE * HOMETOWN_TELEPORT_DOOR_WIDTH_TILES;
+        int h = TILE_SIZE * HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES;
+        g2d.setColor(new Color(28, 40, 70, 210));
         g2d.fillRoundRect(x, y, w, h, 8, 8);
-        g2d.setColor(new Color(60, 60, 80));
+        g2d.setColor(new Color(130, 210, 255));
         g2d.drawRoundRect(x, y, w, h, 8, 8);
-        double glow = Math.sin(windTimeSeconds * 3.0) * 0.3 + 0.7;
-        g2d.setColor(new Color(60, 60, 80, (int) (80 * glow)));
-        g2d.setStroke(new java.awt.BasicStroke(2f));
-        g2d.drawRoundRect(x - 1, y - 1, w + 2, h + 2, 10, 10);
-        g2d.setStroke(new java.awt.BasicStroke(1f));
         int opening = (int) Math.round((w - 12) * teleportDoorProximity);
         int energyX = x + (w - opening) / 2;
-        g2d.setColor(new Color(40, 40, 60, 180));
+        g2d.setColor(new Color(85, 200, 255, 140));
         g2d.fillRoundRect(energyX, y + 7, opening, h - 14, 6, 6);
-        g2d.setColor(new Color(120, 120, 140, 200));
+        g2d.setColor(new Color(225, 245, 255, 210));
         g2d.drawString("Teleport Door", x - 4, y - 4);
+        // TODO(art): replace this placeholder with final glowing sci-fi animated door asset.
     }
 
     private void beginBetaCityPreparationTransition() {
@@ -1758,231 +1700,6 @@ public class GamePanel extends JPanel implements Runnable {
             synchronized (this) {
                 teleportInProgress = false;
                 teleportWithFade(2);
-            }
-        }).start();
-    }
-
-    private void startCorruptionCutscene() {
-        corruptionCutsceneActive = true;
-        corruptionCutsceneTimer = 0.0;
-        corruptionShakeIntensity = 0.0;
-        corruptionGlitchIntensity = 0.0;
-        corruptionFadeProgress = 0.0;
-        corruptionMapLoaded = false;
-        movementLocked = true;
-        soundManager.playGlitchSound();
-    }
-
-    private void updateCorruptionCutscene(double deltaSeconds) {
-        if (!corruptionCutsceneActive) {
-            return;
-        }
-        corruptionCutsceneTimer += deltaSeconds;
-        double t = corruptionCutsceneTimer;
-
-        if (t < 0.5) {
-            corruptionShakeIntensity = t / 0.5 * 8.0;
-        } else if (t < 2.0) {
-            corruptionShakeIntensity = 8.0 + (t - 0.5) / 1.5 * 4.0;
-            corruptionGlitchIntensity = Math.min(1.0, (t - 0.5) / 1.5);
-        } else if (t < 3.0) {
-            corruptionShakeIntensity = 12.0 * (1.0 - (t - 2.0) / 1.0);
-            corruptionGlitchIntensity = 1.0;
-            corruptionFadeProgress = Math.min(1.0, (t - 2.0) / 1.0);
-        } else {
-            corruptionShakeIntensity = 0.0;
-            corruptionGlitchIntensity = 0.0;
-            corruptionFadeProgress = 1.0;
-            if (!corruptionMapLoaded) {
-                corruptionMapLoaded = true;
-                loadCorruptedBetaCity();
-            }
-        }
-    }
-
-    private void loadCorruptedBetaCity() {
-        fadeTarget = 1.0;
-        fadeAlpha = 1.0;
-        new Thread(() -> {
-            try {
-                Thread.sleep(300);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            synchronized (this) {
-                worldIndex = 3;
-                corruptionCutsceneActive = false;
-                corruptionShakeIntensity = 0.0;
-                corruptionGlitchIntensity = 0.0;
-                corruptionFadeProgress = 0.0;
-                World world = worlds[worldIndex];
-                player.teleportToTile(world.getSpawnTileX(), world.getSpawnTileY());
-                previousTileX = (int) player.getX() / TILE_SIZE;
-                previousTileY = (int) player.getY() / TILE_SIZE;
-                encounterCooldownTimer = 1.5;
-                camera.follow(player, world, LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE_SIZE);
-                soundManager.playWorldMusic(world.getName());
-                questManager.setQuestStage(QuestManager.STAGE_TOURNAMENT_STARTED);
-                setObjective("Find the source of the glitch");
-                fadeTarget = 0.0;
-                teleportInProgress = false;
-                worldBannerTimer = 4.0;
-                worldBannerAlpha = 0.0;
-                movementLocked = false;
-                startAnnouncerDialogue();
-            }
-        }).start();
-    }
-
-    private void startAnnouncerDialogue() {
-        announcerSpeakers = new String[]{
-                "Announcer", "Player",
-                "Announcer",
-                "Trialmaster",
-                "Unknown Speaker",
-                "G-Watch",
-                "Player",
-                "Professor Alfred",
-                "Player"
-        };
-        announcerLines = new String[]{
-                "IT'S TIME FOR THE TOURNA– BZZZT–KRZZHH–VRRRTTCHH—",
-                "Huh? A glitch?",
-                "BZZZZZT–KRZZZHHHH–VVVRRRTTTCCCHHHHHHH–KRRRRAAAASHHHH–SHHHHHHHHHHHHhhhhh",
-                "THE CITY IS COLLAPSING!",
-                "Professor, I'm logging you out for safety. Now it's time to destroy Beta City.",
-                "*ringing*",
-                "Professor, what's happening!?",
-                "Someone hacked the game. I'm back in the real world. Player, I need you to stop them and stall for time so I can kick them out and restore the game!",
-                "Alright! I'm not letting this world die!"
-        };
-        announcerDialogueActive = true;
-        announcerPageIndex = 0;
-        announcerDialogueController = new DialogueController();
-        announcerDialogueController.start(DialogueFactory.createSequence(
-                new String[]{announcerSpeakers[0]},
-                new String[]{announcerLines[0]}
-        ));
-    }
-
-    private void updateAnnouncerDialogue(double deltaSeconds) {
-        if (!announcerDialogueActive) {
-            return;
-        }
-        announcerDialogueController.update(deltaSeconds);
-        if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
-            announcerDialogueActive = false;
-            return;
-        }
-        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE) || input.consumeJustPressed(KeyEvent.VK_E)) {
-            if (announcerDialogueController.advance()) {
-                announcerPageIndex++;
-                if (announcerPageIndex < announcerSpeakers.length) {
-                    announcerDialogueController.start(DialogueFactory.createSequence(
-                            new String[]{announcerSpeakers[announcerPageIndex]},
-                            new String[]{announcerLines[announcerPageIndex]}
-                    ));
-                } else {
-                    announcerDialogueActive = false;
-                }
-            }
-        }
-    }
-
-    private void updateTrialmasterProximityObjective(World current) {
-        if (!"World 3 - Beta City".equalsIgnoreCase(current.getName())) {
-            return;
-        }
-        if (!questManager.isStage(QuestManager.STAGE_ENTERED_BETA_CITY)) {
-            return;
-        }
-        Npc trialmaster = findNpcByName(current, "Trialmaster");
-        if (trialmaster == null) {
-            return;
-        }
-        int playerTileX = player.getCenterX() / TILE_SIZE;
-        int playerTileY = player.getCenterY() / TILE_SIZE;
-        int npcTileX = trialmaster.getCenterX() / TILE_SIZE;
-        int npcTileY = trialmaster.getCenterY() / TILE_SIZE;
-        int dx = Math.abs(playerTileX - npcTileX);
-        int dy = Math.abs(playerTileY - npcTileY);
-        if (Math.max(dx, dy) <= 5) {
-            questManager.setQuestStage(QuestManager.STAGE_ENTERED_TOURNAMENT_HALL);
-            setObjective("Challenge Trialmaster");
-        }
-    }
-
-    private void startSequentialBattles() {
-        sequentialBattlesActive = true;
-        sequentialBattleIndex = 0;
-        sequentialBattleOrder = new String[]{"Nokami", "Shadefox", "Kyoflare"};
-        startNextSequentialBattle();
-    }
-
-    private void startNextSequentialBattle() {
-        if (sequentialBattleIndex >= sequentialBattleOrder.length) {
-            sequentialBattlesActive = false;
-            triggerFinalGlitchBossBattle();
-            return;
-        }
-        String beast = sequentialBattleOrder[sequentialBattleIndex];
-        if (!prepareBattlePartyFromInventory()) {
-            sequentialBattlesActive = false;
-            return;
-        }
-        bossArenaActive = true;
-        currentBossWorldIndex = worldIndex;
-        currentBossName = beast.toLowerCase();
-        battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
-        battleSystem.startWildBattle(beast);
-        gameState = GameState.BATTLE;
-        soundManager.playCombatMusic();
-    }
-
-    private void triggerFinalGlitchBossBattle() {
-        DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Glitch", "Player"},
-                new String[]{
-                        "BEAST CARD ON! HENSHIN!",
-                        "Let's do this!"
-                }
-        );
-        startDialogue(script, "START_BOSS:glitch_woltrix");
-    }
-
-    private void handleGlitchBossVictory() {
-        questManager.setQuestStage(QuestManager.STAGE_DEFEATED_GLITCH);
-        setObjective("Return to the Real World");
-        corruptionShakeIntensity = 0.0;
-        corruptionGlitchIntensity = 0.0;
-        activeNpc = findNpcByName(worlds[3], "Glitch");
-        DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Glitch", "Player", "Professor Alfred", "Player"},
-                new String[]{
-                        "You're as good as they say. I'll keep my promise—but soon you'll know the truth.",
-                        "I'll be ready.",
-                        "Transporting you back! We've found the culprit, but we can't go to the authorities. Check your mail; we'll meet somewhere safe.",
-                        "Wonder what will happen now, well I'll just go to sleep for now."
-                }
-        );
-        startDialogue(script, "TRIGGER_ENDING");
-    }
-
-    private void triggerEndingSequence() {
-        movementLocked = true;
-        fadeTarget = 1.0;
-        fadeAlpha = Math.max(fadeAlpha, 0.01);
-        new Thread(() -> {
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            synchronized (this) {
-                questManager.setQuestStage(QuestManager.STAGE_ENDING_TRIGGERED);
-                saveProgress();
-                movementLocked = false;
-                interactionMessage = "Thanks for playing DigiWorld!";
             }
         }).start();
     }
@@ -2030,38 +1747,14 @@ public class GamePanel extends JPanel implements Runnable {
     private World[] createWorlds() {
         String aldrichBase = findAldrichSpriteBaseDir();
         World[] built = new World[]{
-                new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{
-                        new Npc(
-                                "Professor Alfred",
-                                TILE_SIZE, TILE_SIZE,
-                                new Color(214, 93, 177),
-                                new int[][]{{24, 18}, {26, 18}, {26, 20}, {24, 20}},
-                                "res/characters/professor-alfred/profalfred-fw.png",
-                                "res/characters/professor-alfred/profalfred-b.png",
-                                "res/characters/professor-alfred/profalfred-l.png",
-                                "res/characters/professor-alfred/profalfred-r.png"
-                        ),
-                        new Npc(
-                                "General Edrian",
-                                TILE_SIZE, TILE_SIZE,
-                                new Color(245, 132, 92),
-                                new int[][]{{20, 17}, {18, 17}, {18, 20}, {20, 20}},
-                                "res/characters/gen-ed/gened-fw.png",
-                                "res/characters/gen-ed/gened-b.png",
-                                "res/characters/gen-ed/gened-l.png",
-                                "res/characters/gen-ed/gened-r.png"
-                        ),
-                        new Npc(
-                                "Shopkeeper",
-                                TILE_SIZE, TILE_SIZE,
-                                new Color(128, 214, 104),
-                                new int[][]{{12, 18}, {12, 17}, {15, 17}, {15, 17}},
-                                "res/characters/glitch-ron/glitchron-fw.png",
-                                "res/characters/glitch-ron/glitchron-b.png",
-                                "res/characters/glitch-ron/glitchron-l.png",
-                                "res/characters/glitch-ron/glitchron-r.png"
-                        )
-                }),
+                new World(
+                        "Hometown",
+                        46, 36,
+                        TILE_SIZE,
+                        HometownTileMap.TELEPORTER_X + 1,
+                        HometownTileMap.TELEPORTER_Y + HometownTileMap.TELEPORTER_HEIGHT_TILES,
+                        new Npc[]{}
+                ),
                 new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
                         new Npc(
                                 "Chief Rei",
@@ -2104,7 +1797,7 @@ public class GamePanel extends JPanel implements Runnable {
                                 "Ace Jazz",
                                 TILE_SIZE, TILE_SIZE,
                                 new Color(230, 160, 75),
-                                new int[][]{{28, 27}, {28, 27}, {28, 27}, {28, 27}},
+                                new int[][]{{33, 26}, {33, 26}, {33, 26}, {33, 26}},
                                 "res/characters/ace-jazz/acejazz-fw.png",
                                 "res/characters/ace-jazz/acejazz-b.png",
                                 "res/characters/ace-jazz/acejazz-l.png",
@@ -2131,12 +1824,12 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
-                new World("Corrupted Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
+                new World("World 4 - Collapse Zone", 60, 46, TILE_SIZE, 30, 23, new Npc[]{
                         new Npc(
                                 "Glitch",
                                 TILE_SIZE, TILE_SIZE,
                                 new Color(128, 214, 104),
-                                new int[][]{{28, 21}, {28, 21}, {28, 21}, {28, 21}},
+                                new int[][]{{30, 23}, {30, 23}, {30, 23}, {30, 23}},
                                 "res/characters/glitch-ron/glitchron-fw.png",
                                 "res/characters/glitch-ron/glitchron-b.png",
                                 "res/characters/glitch-ron/glitchron-l.png",
@@ -2153,7 +1846,18 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
-                new World("House 1", 46, 36, TILE_SIZE, 25, 19, new Npc[]{
+                // ── House interiors ──────────────────────────────────────────────
+                new World("House 1", 46, 37, TILE_SIZE, 22, 22, new Npc[]{
+                        new Npc(
+                                "General Edrian",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(245, 132, 92),
+                                new int[][]{{22, 20}, {24, 20}, {24, 21}, {22, 21}},
+                                "res/characters/gen-ed/gened-fw.png",
+                                "res/characters/gen-ed/gened-b.png",
+                                "res/characters/gen-ed/gened-l.png",
+                                "res/characters/gen-ed/gened-r.png"
+                        ),
                         new Npc(
                                 "Shopkeeper",
                                 TILE_SIZE, TILE_SIZE,
@@ -2164,7 +1868,20 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/glitch-ron/glitchron-l.png",
                                 "res/characters/glitch-ron/glitchron-r.png"
                         )
-                })
+                }),
+                new World("Laboratory", 46, 37, TILE_SIZE, 22, 22, new Npc[]{
+                        new Npc(
+                                "Professor Alfred",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(214, 93, 177),
+                                new int[][]{{22, 16}, {23, 16}, {24, 16}, {25, 16}},
+                                "res/characters/professor-alfred/profalfred-fw.png",
+                                "res/characters/professor-alfred/profalfred-b.png",
+                                "res/characters/professor-alfred/profalfred-l.png",
+                                "res/characters/professor-alfred/profalfred-r.png"
+                        )
+                }),
+                new World("House", 46, 37, TILE_SIZE, 22, 22, new Npc[]{})
         };
         for (World world : built) {
             WorldTileMapRegistry.apply(world);
@@ -2210,7 +1927,6 @@ public class GamePanel extends JPanel implements Runnable {
             current.renderTiles(scene, camera, TILE_SIZE, LOGICAL_WIDTH, LOGICAL_HEIGHT, windTimeSeconds);
             current.drawStructuresBefore(scene, camera, (int) player.getY() + player.getSize());
             for (Npc npc : current.getNpcs()) {
-                if ("Glitch".equalsIgnoreCase(npc.getName()) && announcerDialogueActive) continue;
                 npc.render(scene, camera);
             }
             renderParticles(scene, true);
@@ -2218,7 +1934,6 @@ public class GamePanel extends JPanel implements Runnable {
             renderParticles(scene, false);
             current.drawStructuresAfter(scene, camera, (int) player.getY() + player.getSize());
             drawScanMarker(scene);
-            drawHometownTeleportDoorPlaceholder(scene, current);
             if (bossArenaActive) {
                 drawBossArena(scene, current);
             }
@@ -2226,12 +1941,8 @@ public class GamePanel extends JPanel implements Runnable {
             drawHud(scene, current);
             drawCoordinateHud(scene, current);
             drawNpcSpeechBubble(scene);
-            drawCorruptionOverlay(scene);
             if (gameState == GameState.DIALOGUE) {
-                drawDialogueAboveNpc(scene, current);
-            }
-            if (announcerDialogueActive) {
-                drawAnnouncerDialogue(scene);
+                drawDialogueAboveNpc(scene);
             }
             if (interactionMenuOpen) {
                 drawMenu(scene);
@@ -2252,16 +1963,10 @@ public class GamePanel extends JPanel implements Runnable {
 
         Graphics2D g2d = (Graphics2D) g;
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        int shakeX = 0;
-        int shakeY = 0;
-        if (corruptionShakeIntensity > 0.5) {
-            shakeX = (int) ((random.nextDouble() - 0.5) * corruptionShakeIntensity * 3);
-            shakeY = (int) ((random.nextDouble() - 0.5) * corruptionShakeIntensity * 3);
-        }
         if (gameState == GameState.DIALOGUE && activeNpc != null) {
             drawZoomedDialogueScene(g2d);
         } else {
-            g2d.drawImage(frameBuffer, shakeX, shakeY, SCREEN_WIDTH, SCREEN_HEIGHT, null);
+            g2d.drawImage(frameBuffer, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, null);
         }
         if (fadeAlpha > 0.01) {
             g2d.setColor(new Color(0, 0, 0, (int) (255 * fadeAlpha)));
@@ -2288,13 +1993,6 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void drawHud(Graphics2D g2d, World current) {
-        double worldBannerAlpha = 1.0;
-        if (worldBannerTimer > 0.0) {
-            worldBannerTimer = Math.max(0.0, worldBannerTimer - 0.016);
-            if (worldBannerTimer < 2.0) {
-                worldBannerAlpha = worldBannerTimer / 2.0;
-            }
-        }
         uiRenderer.drawHud(
                 g2d,
                 current,
@@ -2581,7 +2279,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     private boolean isGenEd(Npc npc, World world) {
         return npc != null
-                && "Hometown".equalsIgnoreCase(world.getName())
+                && ("Hometown".equalsIgnoreCase(world.getName()) || "House 1".equalsIgnoreCase(world.getName()))
                 && "General Edrian".equalsIgnoreCase(npc.getName());
     }
 
@@ -2593,7 +2291,8 @@ public class GamePanel extends JPanel implements Runnable {
         if (npc == null) {
             return;
         }
-        if ("General Edrian".equalsIgnoreCase(npc.getName()) && "Hometown".equalsIgnoreCase(world.getName())) {
+        if ("General Edrian".equalsIgnoreCase(npc.getName())
+                && ("Hometown".equalsIgnoreCase(world.getName()) || "House 1".equalsIgnoreCase(world.getName()))) {
             interactionMessage = "General Edrian: Gaming can build strategy and discipline. DigiWorld was made so gamers can think and move like true commanders.";
             seenNpcDialogues.add(npc.getName());
             return;
@@ -2641,30 +2340,13 @@ public class GamePanel extends JPanel implements Runnable {
             return questManager.isStage(QuestManager.STAGE_RETURNED_TO_LAB);
         }
         if ("voltchu".equals(normalized) || "trialmaster".equals(normalized)) {
-            return questManager.atLeast(QuestManager.STAGE_ENTERED_BETA_CITY) && inventory.hasItem("Challenge Ticket");
-        }
-        if ("woltrix".equals(normalized)) {
-            return questManager.atLeast(QuestManager.STAGE_REACHED_GLITCH_AREA);
+            return questManager.isStage(QuestManager.STAGE_ENTERED_BETA_CITY) && inventory.hasItem("Challenge Ticket");
         }
         return true;
     }
 
     private void handleBossVictory() {
         if (currentBossWorldIndex < 0) {
-            return;
-        }
-
-        if (sequentialBattlesActive) {
-            sequentialBattleIndex++;
-            if (sequentialBattleIndex < sequentialBattleOrder.length) {
-                startNextSequentialBattle();
-            } else {
-                sequentialBattlesActive = false;
-                bossArenaActive = false;
-                currentBossWorldIndex = -1;
-                currentBossName = null;
-                triggerFinalGlitchBossBattle();
-            }
             return;
         }
 
@@ -2680,39 +2362,23 @@ public class GamePanel extends JPanel implements Runnable {
             );
             startDialogue(script, "TELEPORT_TO_LAB_STAGE1");
         } else if (currentBossWorldIndex == 2) {
-            if ("pirrot".equals(currentBossName)) {
-                questManager.setQuestStage(QuestManager.STAGE_ENTERED_BETA_CITY);
+            trialCompleted = true;
+            if ("Boss battle: Pirrot".equalsIgnoreCase(interactionMessage) || aceJazzState >= 1) {
+                questManager.setQuestStage(QuestManager.STAGE_ENTERED_BETA_CITY); // stage 9
                 inventory.addItem("Challenge Ticket");
                 DialogueSequence script = DialogueFactory.createSequence(
                         new String[]{"Ace Jazz"},
-                        new String[]{"You've surpassed us all. Take this Challenge Ticket, you've earned it. With it, you're worthy of the Tournament Trial."}
+                        new String[]{"You’ve surpassed us all. Take this Challenge Ticket, you’ve earned it. With it, you’re worthy of the Tournament Trial."}
                 );
                 startDialogue(script, "SET_OBJECTIVE:Go to the Tournament Hall");
-            } else if ("voltchu".equals(currentBossName)) {
-                questManager.setQuestStage(QuestManager.STAGE_DEFEATED_TRIALMASTER);
+            } else {
+                questManager.setQuestStage(QuestManager.STAGE_DEFEATED_ACE_JAZZ); // stage 10
                 setObjective("Wait for the Tournament to Begin");
-                activeNpc = findNpcByName(worlds[2], "Trialmaster");
-                DialogueSequence script = DialogueFactory.createSequence(
-                        new String[]{"Trialmaster", "Trialmaster", "Trialmaster", "Trialmaster", "Player", "Trialmaster", "Trialmaster"},
-                        new String[]{
-                                "You've beaten me… and qualified for the tournament!",
-                                "And yes, I'm the Professor. In this game, I'm \"Trialmaster.\"",
-                                "I transported in to personally monitor the test and ensure no glitches slip through.",
-                                "I sense something bad is coming, and I had to see it for myself instead of just observing you.",
-                                "But why would something bad happen? You're a genius, you've planned everything for this game!",
-                                "True, but there's been tension between the staff and the General even before the beta started.",
-                                "Reasons I can't share with you… for now. Let's continue testing and see what unfolds."
-                        }
-                );
-                startDialogue(script, "START_CORRUPTION_CUTSCENE");
             }
-        } else if ("woltrix".equals(currentBossName)) {
-            handleGlitchBossVictory();
         }
 
         bossArenaActive = false;
         currentBossWorldIndex = -1;
-        currentBossName = null;
         saveProgress();
     }
 
@@ -2730,7 +2396,6 @@ public class GamePanel extends JPanel implements Runnable {
         }
         bossArenaActive = false;
         currentBossWorldIndex = -1;
-        currentBossName = null;
     }
 
     private void triggerBetaCityTournament(World current) {
@@ -2850,111 +2515,29 @@ public class GamePanel extends JPanel implements Runnable {
         uiRenderer.drawRpgBeastSelection(g2d, title, subtitle, choices, selectedIndex, selectedStarterIndices, gameState);
     }
 
-    private void drawDialogueAboveNpc(Graphics2D g2d, World current) {
-        uiRenderer.drawDialogueAboveNpc(g2d, activeNpc, dialogueController, player, camera, current);
+    private void drawDialogueAboveNpc(Graphics2D g2d) {
+        uiRenderer.drawDialogueAboveNpc(g2d, activeNpc, dialogueController, player, camera, worlds[worldIndex]);
     }
 
-    private String[] wrapAnnouncerText(Graphics2D g2d, String text, int maxWidthPx) {
-        if (text == null || text.isEmpty()) {
-            return new String[]{""};
-        }
-        java.awt.FontMetrics fm = g2d.getFontMetrics(UIFont.regular(10f));
-        java.util.List<String> lines = new java.util.ArrayList<>();
-        String[] words = text.split(" ");
-        StringBuilder current = new StringBuilder();
-        for (String word : words) {
-            if (current.isEmpty()) {
-                current.append(word);
-                continue;
-            }
-            String candidate = current + " " + word;
-            if (fm.stringWidth(candidate) <= maxWidthPx) {
-                current.append(" ").append(word);
-            } else {
-                lines.add(current.toString());
-                current = new StringBuilder(word);
-            }
-        }
-        if (!current.isEmpty()) {
-            lines.add(current.toString());
-        }
-        return lines.toArray(new String[0]);
-    }
-
-    private void drawCorruptionOverlay(Graphics2D g2d) {
-        String worldName = worlds[worldIndex].getName();
-        boolean isCorrupted = "Corrupted Beta City".equalsIgnoreCase(worldName);
-        double intensity = isCorrupted ? 1.0 : corruptionGlitchIntensity;
-        if (intensity < 0.01) {
-            return;
-        }
+    private void drawCollapseEffects(Graphics2D g2d) {
         double flicker = Math.sin(windTimeSeconds * 12.0) * 0.5 + 0.5;
-        if (random.nextDouble() < 0.08 * intensity) {
+        if (random.nextDouble() < 0.08) {
             int sliceY = random.nextInt(LOGICAL_HEIGHT);
             int sliceH = 2 + random.nextInt(8);
             int offset = (random.nextInt(20) - 10) * (int) flicker;
-            g2d.drawImage(frameBuffer, offset, sliceY, offset + LOGICAL_WIDTH, sliceY + sliceH,
+            g2d.drawImage(frameBuffer, offset, sliceY, offset + SCREEN_WIDTH, sliceY + sliceH,
                     0, sliceY, LOGICAL_WIDTH, sliceY + sliceH, null);
         }
-        if (random.nextDouble() < 0.04 * intensity) {
-            g2d.setColor(new Color(255, 0, 0, (int) (40 * intensity)));
-            g2d.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
-        }
-        if (random.nextDouble() < 0.06 * intensity) {
-            int scanY = random.nextInt(LOGICAL_HEIGHT);
-            g2d.setColor(new Color(255, 255, 255, (int) (60 * intensity)));
-            g2d.fillRect(0, scanY, LOGICAL_WIDTH, 1 + random.nextInt(3));
-        }
-        if (random.nextDouble() < 0.03 * intensity) {
-            int tileX = random.nextInt(LOGICAL_WIDTH / 32) * 32;
-            int tileY = random.nextInt(LOGICAL_HEIGHT / 32) * 32;
-            g2d.setColor(new Color(random.nextInt(256), random.nextInt(256), random.nextInt(256), 80));
-            g2d.fillRect(tileX, tileY, 32, 32);
-        }
-    }
 
-    private void drawAnnouncerDialogue(Graphics2D g2d) {
-        if (!announcerDialogueActive || announcerDialogueController == null) {
-            return;
+        if (random.nextDouble() < 0.04) {
+            g2d.setColor(new Color(255, 0, 0, 40));
+            g2d.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         }
-        DialoguePage page = announcerDialogueController.getCurrentPage();
-        if (page == null) {
-            return;
-        }
-        String speaker = page.getSpeaker() != null ? page.getSpeaker() : "";
-        String typed = announcerDialogueController.getVisibleText();
-        String[] wrapped = wrapAnnouncerText(g2d, typed, 300);
-        int boxWidth = 320;
-        int lineHeight = 14;
-        int footerHeight = announcerDialogueController.isLineFinished() ? 16 : 0;
-        int maxLines = 7;
-        String[] visibleLines = wrapped;
-        if (wrapped.length > maxLines) {
-            visibleLines = new String[maxLines];
-            for (int i = 0; i < maxLines - 1; i++) {
-                visibleLines[i] = wrapped[i];
-            }
-            visibleLines[maxLines - 1] = wrapped[maxLines - 1] + "...";
-        }
-        int boxHeight = 28 + visibleLines.length * lineHeight + footerHeight;
-        int x = (LOGICAL_WIDTH - boxWidth) / 2;
-        int y = 20;
-        g2d.setColor(new Color(0, 0, 0, 220));
-        g2d.fillRoundRect(x + 2, y + 2, boxWidth, boxHeight, 8, 8);
-        g2d.fillRoundRect(x, y, boxWidth, boxHeight, 8, 8);
-        g2d.setColor(new Color(230, 230, 240));
-        g2d.drawRoundRect(x, y, boxWidth, boxHeight, 8, 8);
-        g2d.setColor(new Color(255, 200, 100));
-        g2d.setFont(UIFont.bold(11f));
-        g2d.drawString(speaker, x + 10, y + 14);
-        g2d.setColor(Color.WHITE);
-        g2d.setFont(UIFont.regular(10f));
-        for (int i = 0; i < visibleLines.length; i++) {
-            g2d.drawString(visibleLines[i], x + 10, y + 32 + i * lineHeight);
-        }
-        if (announcerDialogueController.isLineFinished()) {
-            g2d.setColor(new Color(200, 200, 215));
-            g2d.drawString("ENTER/SPACE/E continue | ESC skip", x + 10, y + boxHeight - 6);
+
+        if (random.nextDouble() < 0.06) {
+            int scanY = random.nextInt(SCREEN_HEIGHT);
+            g2d.setColor(new Color(255, 255, 255, 60));
+            g2d.fillRect(0, scanY, SCREEN_WIDTH, 1 + random.nextInt(3));
         }
     }
 
@@ -3058,31 +2641,6 @@ public class GamePanel extends JPanel implements Runnable {
         c.drawLine(px - 8, py, px + 8, py);
         c.drawLine(px, py - 8, px, py + 8);
         c.dispose();
-    }
-
-    private void drawDebugHitboxes(Graphics2D g) {
-        int px = (int) player.getX() - camera.getX();
-        int py = (int) player.getY() - camera.getY();
-        int ps = player.getSize();
-        g.setColor(Color.RED);
-        g.drawRect(px, py, ps, ps);
-
-        for (Structure s : worlds[worldIndex].getStructures()) {
-            Rectangle r = s.getCollisionRect();
-            int sx = r.x - camera.getX();
-            int sy = r.y - camera.getY();
-            g.setColor(Color.GREEN);
-            g.drawRect(sx, sy, r.width, r.height);
-        }
-
-        // Door hitboxes
-        for (DoorEntry d : doorManager.getDoors()) {
-            Rectangle r = d.getRect();
-            int dx = r.x - camera.getX();
-            int dy = r.y - camera.getY();
-            g.setColor(Color.BLUE);
-            g.drawRect(dx, dy, r.width, r.height);
-        }
     }
 
 }

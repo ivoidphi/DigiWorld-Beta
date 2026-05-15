@@ -21,6 +21,7 @@ public class Player extends Entity {
     private final BufferedImage spriteLeft;
     private final BufferedImage spriteRight;
 
+    // Reference to DoorManager — set by GamePanel after construction
     private DoorManager doorManager;
 
     public Player(double x, double y, int size, InputHandler input, int tileSize) {
@@ -60,6 +61,7 @@ public class Player extends Entity {
         double nextX = x + moveX * speedPixelsPerSecond * deltaSeconds;
         double nextY = y + moveY * speedPixelsPerSecond * deltaSeconds;
 
+        // Check door BEFORE collision so structure walls don't block entry
         if (moving && doorManager != null) {
             Rectangle nextRect = getRect(nextX, nextY);
             if (doorManager.checkAt(nextRect)) return;
@@ -75,10 +77,11 @@ public class Player extends Entity {
         int rightTile  = ((int) checkX + size - 1) / tileSize;
         int bottomTile = ((int) checkY + size - 1) / tileSize;
 
-        if (world.getTile(leftTile,  topTile).isBlocked()    ||
-            world.getTile(rightTile, topTile).isBlocked()    ||
-            world.getTile(leftTile,  bottomTile).isBlocked() ||
-            world.getTile(rightTile, bottomTile).isBlocked()) return false;
+        // Tile collision
+        if (world.isTileBlocked(leftTile,  topTile)    ||
+            world.isTileBlocked(rightTile, topTile)    ||
+            world.isTileBlocked(leftTile,  bottomTile) ||
+            world.isTileBlocked(rightTile, bottomTile)) return false;
 
         double inset = 2.0;
         double pLeft = checkX + inset, pTop = checkY + inset;
@@ -86,6 +89,7 @@ public class Player extends Entity {
         double cLeft = x + inset, cTop = y + inset;
         double cRight = x + size - inset, cBottom = y + size - inset;
 
+        // NPC collision (unchanged from original)
         for (Npc npc : world.getNpcs()) {
             double nLeft = npc.getX() + inset, nTop = npc.getY() + inset;
             double nRight = npc.getX() + npc.getSize() - inset;
@@ -102,6 +106,7 @@ public class Player extends Entity {
             }
         }
 
+        // Structure collision — pixel-based rect, same style as NPC
         for (Structure s : world.getStructures()) {
             Rectangle sr = s.getCollisionRect();
             double sLeft = sr.x, sTop = sr.y;
@@ -121,6 +126,7 @@ public class Player extends Entity {
         return true;
     }
 
+    /** Player rect at a given position (used for door lookahead). */
     private Rectangle getRect(double px, double py) {
         int inset = 2;
         return new Rectangle((int) px + inset, (int) py + inset, size - inset * 2, size - inset * 2);
