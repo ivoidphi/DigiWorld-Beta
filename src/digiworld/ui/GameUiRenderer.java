@@ -296,13 +296,9 @@ public class GameUiRenderer {
                 int spriteW = sprite.getWidth();
                 int spriteH = sprite.getHeight();
                 int targetSize = 34;
-                int drawW = targetSize;
-                int drawH = targetSize;
-                if (spriteW > spriteH) {
-                    drawH = (int) ((long) spriteH * targetSize / spriteW);
-                } else if (spriteH > spriteW) {
-                    drawW = (int) ((long) spriteW * targetSize / spriteH);
-                }
+                double scale = Math.min((double) targetSize / spriteW, (double) targetSize / spriteH);
+                int drawW = (int) (spriteW * scale);
+                int drawH = (int) (spriteH * scale);
                 int offsetX = (targetSize - drawW) / 2;
                 int offsetY = (targetSize - drawH) / 2;
                 g2d.drawImage(sprite, cardX + 6 + offsetX, drawY + 6 + offsetY, drawW, drawH, null);
@@ -339,13 +335,9 @@ public class GameUiRenderer {
             int spriteH = selectedSprite.getHeight();
             int targetW = detailW - 36;
             int targetH = 92;
-            int drawW = targetW;
-            int drawH = targetH;
-            if (spriteW > spriteH) {
-                drawH = (int) ((long) spriteH * targetW / spriteW);
-            } else if (spriteH > spriteW) {
-                drawW = (int) ((long) spriteW * targetH / spriteH);
-            }
+            double scale = Math.min((double) targetW / spriteW, (double) targetH / spriteH);
+            int drawW = (int) (spriteW * scale);
+            int drawH = (int) (spriteH * scale);
             int offsetX = (targetW - drawW) / 2;
             int offsetY = (targetH - drawH) / 2;
             g2d.drawImage(selectedSprite, detailX + 18 + offsetX, detailY + 14 + offsetY, drawW, drawH, null);
