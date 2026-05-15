@@ -1,6 +1,8 @@
 package digiworld.core;
 
 import digiworld.app.GamePanel;
+import digiworld.maps.AlphaVillageTileMap;
+import digiworld.maps.BetaCityTileMap;
 import digiworld.maps.HometownTileMap;
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -20,6 +22,9 @@ public class DoorManager {
     private final GamePanel gp;
     private final int tileSize;
     private final List<DoorEntry> doors = new ArrayList<>();
+    private int houseReturnWorld = WorldIndex.HOMETOWN;
+    private int houseReturnTileX = HometownTileMap.centerHouseDoorTileX();
+    private int houseReturnTileY = HometownTileMap.centerHouseDoorTileY() + 1;
 
     public DoorManager(GamePanel gp, int tileSize) {
         this.gp = gp;
@@ -71,10 +76,32 @@ public class DoorManager {
                 HometownTileMap.laboratoryDoorTileY() + 1
         ));
 
+        registerSharedHouseDoors(WorldIndex.ALPHA_VILLAGE, AlphaVillageTileMap.HOUSE_DOORS);
+        registerSharedHouseDoors(WorldIndex.BETA_CITY, BetaCityTileMap.HOUSE_DOORS);
+        doors.add(new DoorEntry(
+                WorldIndex.HOUSE, 22, 24, tileSize,
+                WorldIndex.HOUSE, 22, 22
+        ));
+        doors.add(new DoorEntry(
+                WorldIndex.HOUSE, 23, 24, tileSize,
+                WorldIndex.HOUSE, 22, 22
+        ));
 
         // Add more doors here as you build them:
         // doors.add(new DoorEntry(WorldIndex.BETA_CITY, doorTileX, doorTileY, tileSize,
         //                         WorldIndex.HOUSE_2, spawnTileX, spawnTileY));
+    }
+
+    private void registerSharedHouseDoors(int sourceWorld, int[][] doorTiles) {
+        for (int[] doorTile : doorTiles) {
+            doors.add(new DoorEntry(
+                    sourceWorld,
+                    doorTile[0],
+                    doorTile[1],
+                    tileSize,
+                    WorldIndex.HOUSE, 22, 22
+            ));
+        }
     }
 
     /**
@@ -88,7 +115,7 @@ public class DoorManager {
         for (DoorEntry door : doors) {
             if (door.sourceWorld != currentWorld) continue;
             if (playerRect.intersects(door.getRect())) {
-                gp.teleportWithFade(door.destWorld, door.spawnTileX, door.spawnTileY);
+                teleportThrough(door);
                 return;
             }
         }
@@ -105,11 +132,24 @@ public class DoorManager {
         for (DoorEntry door : doors) {
             if (door.sourceWorld != currentWorld) continue;
             if (nextRect.intersects(door.getRect())) {
-                gp.teleportWithFade(door.destWorld, door.spawnTileX, door.spawnTileY);
+                teleportThrough(door);
                 return true;
             }
         }
         return false;
+    }
+
+    private void teleportThrough(DoorEntry door) {
+        if (door.sourceWorld == WorldIndex.HOUSE) {
+            gp.teleportWithFade(houseReturnWorld, houseReturnTileX, houseReturnTileY);
+            return;
+        }
+        if (door.destWorld == WorldIndex.HOUSE) {
+            houseReturnWorld = door.sourceWorld;
+            houseReturnTileX = door.doorPixelX / tileSize;
+            houseReturnTileY = door.doorPixelY / tileSize + 1;
+        }
+        gp.teleportWithFade(door.destWorld, door.spawnTileX, door.spawnTileY);
     }
 
     private Rectangle getPlayerRect() {

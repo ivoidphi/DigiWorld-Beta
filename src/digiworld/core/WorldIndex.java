@@ -14,7 +14,8 @@ public final class WorldIndex {
     public static final int COLLAPSE_ZONE = 3;
     public static final int HOUSE_1       = 4;
     public static final int LABORATORY    = 5;
+    public static final int HOUSE         = 6;
 
     // Add new worlds here as you build them:
-    // public static final int HOUSE_2    = 5;
+    // public static final int HOUSE_2    = 7;
 }

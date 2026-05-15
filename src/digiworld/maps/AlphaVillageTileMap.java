@@ -9,7 +9,24 @@ public final class AlphaVillageTileMap {
     public static final int HEART_CENTER_X = 25;
     public static final int HEART_CENTER_Y = 8;
     private static final String TREE_PATH = "res/Structures/treefinal.png";
+    private static final String HOUSE_BASE_PATH = "res/Structures/house_finalbot.png";
+    private static final String HOUSE_ROOF_PATH = "res/Structures/house_finalTop.png";
     private static final int TILE_SIZE = 32;
+    private static final int HOUSE_WIDTH_TILES = 4;
+    private static final int HOUSE_HEIGHT_TILES = 3;
+    private static final int HOUSE_ROOF_HEIGHT = 32;
+    private static final int[][] CHIEF_REI_HOUSE_ANCHORS = {
+            {20, 15},
+            {28, 15},
+            {20, 22},
+            {28, 22}
+    };
+    public static final int[][] HOUSE_DOORS = {
+            {21, 17},
+            {29, 17},
+            {21, 24},
+            {29, 24}
+    };
 
     private AlphaVillageTileMap() {
     }
@@ -77,12 +94,68 @@ public final class AlphaVillageTileMap {
 
     public static void applyTo(World world) {
         int[][] map = build(world.getWidth(), world.getHeight());
+        world.clearStructures();
         for (int y = 0; y < map.length; y++) {
             for (int x = 0; x < map[y].length; x++) {
                 world.setTile(x, y, TileMapPalette.toTile(map[y][x]));
             }
         }
         addForestStructures(world, map);
+        addChiefReiHouses(world, map);
+    }
+
+    private static void addChiefReiHouses(World world, int[][] map) {
+        for (int[] anchor : CHIEF_REI_HOUSE_ANCHORS) {
+            int tileX = anchor[0];
+            int tileY = anchor[1];
+            if (canPlaceChiefReiHouse(map, tileX, tileY)) {
+                addHouse(world, tileX, tileY);
+            }
+        }
+    }
+
+    private static boolean canPlaceChiefReiHouse(int[][] map, int tileX, int tileY) {
+        for (int y = tileY; y < tileY + HOUSE_HEIGHT_TILES; y++) {
+            for (int x = tileX; x < tileX + HOUSE_WIDTH_TILES; x++) {
+                if (y < 0 || x < 0 || y >= map.length || x >= map[y].length) {
+                    return false;
+                }
+                if (map[y][x] == TileMapPalette.GRASS_BUSH || map[y][x] == TileMapPalette.WATER) {
+                    return false;
+                }
+                if (isInsideBushEncirclement(x, y) || isInsideChiefReiWalkLoop(x, y)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean isInsideBushEncirclement(int x, int y) {
+        boolean trackedBushRing = x >= TRACKED_BUSH_X - 2 && x <= TRACKED_BUSH_X + 2
+                && y >= TRACKED_BUSH_Y - 2 && y <= TRACKED_BUSH_Y + 2;
+        boolean heartRing = x >= HEART_CENTER_X - 8 && x <= HEART_CENTER_X + 8
+                && y >= HEART_CENTER_Y - 6 && y <= HEART_CENTER_Y + 6;
+        return trackedBushRing || heartRing;
+    }
+
+    private static boolean isInsideChiefReiWalkLoop(int x, int y) {
+        return x >= 26 && x <= 28 && y >= 19 && y <= 21;
+    }
+
+    private static void addHouse(World world, int tileX, int tileY) {
+        world.addStructure(new Structure(
+                tileX * TILE_SIZE,
+                tileY * TILE_SIZE,
+                HOUSE_WIDTH_TILES * TILE_SIZE,
+                HOUSE_HEIGHT_TILES * TILE_SIZE,
+                0,
+                10,
+                10,
+                HOUSE_BASE_PATH,
+                HOUSE_ROOF_PATH,
+                HOUSE_ROOF_HEIGHT
+        ));
     }
 
     private static void addForestStructures(World world, int[][] map) {

@@ -164,8 +164,10 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean aldrichObjectiveTriggered;
     private boolean pendingStage1ReturnCutscene;
     private boolean pendingBetaIntroDialogue;
-    private static final int HOMETOWN_TELEPORT_DOOR_TILE_X = 29;
-    private static final int HOMETOWN_TELEPORT_DOOR_TILE_Y = 17;
+    private static final int HOMETOWN_TELEPORT_DOOR_TILE_X = HometownTileMap.TELEPORTER_X;
+    private static final int HOMETOWN_TELEPORT_DOOR_TILE_Y = HometownTileMap.TELEPORTER_Y;
+    private static final int HOMETOWN_TELEPORT_DOOR_WIDTH_TILES = HometownTileMap.TELEPORTER_WIDTH_TILES;
+    private static final int HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES = HometownTileMap.TELEPORTER_HEIGHT_TILES;
     private boolean teleportDoorLockedMessageShown;
     private boolean teleportInProgress;
     private double teleportDoorProximity;
@@ -195,7 +197,7 @@ public class GamePanel extends JPanel implements Runnable {
         uiRenderer = new GameUiRenderer(LOGICAL_WIDTH, LOGICAL_HEIGHT, PLAYER_NAME, battleSystem);
         inventory = new Inventory();
         random = new Random();
-        worldIndex = 1;
+        worldIndex = WorldIndex.HOMETOWN;
         player = new Player(worlds[worldIndex].getSpawnTileX() * TILE_SIZE, worlds[worldIndex].getSpawnTileY() * TILE_SIZE, TILE_SIZE, input, TILE_SIZE);
         doorManager = new DoorManager(this, TILE_SIZE);
         player.setDoorManager(doorManager);
@@ -1351,7 +1353,9 @@ public class GamePanel extends JPanel implements Runnable {
         if (targetWorldIndex == 2) {
             return pendingBetaIntroDialogue || questManager.atLeast(QuestManager.STAGE_RETURNED_TO_LAB);
         }
-        if (targetWorldIndex == WorldIndex.HOUSE_1 || targetWorldIndex == WorldIndex.LABORATORY) {
+        if (targetWorldIndex == WorldIndex.HOUSE_1
+                || targetWorldIndex == WorldIndex.LABORATORY
+                || targetWorldIndex == WorldIndex.HOUSE) {
             return true;
         }
         return false;
@@ -1363,8 +1367,10 @@ public class GamePanel extends JPanel implements Runnable {
             teleportDoorLockedMessageShown = false;
             return;
         }
-        int centerX = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE + TILE_SIZE / 2;
-        int centerY = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE + TILE_SIZE;
+        int centerX = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE
+                + HOMETOWN_TELEPORT_DOOR_WIDTH_TILES * TILE_SIZE / 2;
+        int centerY = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE
+                + HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES * TILE_SIZE / 2;
         double dx = player.getCenterX() - centerX;
         double dy = player.getCenterY() - centerY;
         double distance = Math.sqrt(dx * dx + dy * dy);
@@ -1378,7 +1384,10 @@ public class GamePanel extends JPanel implements Runnable {
                 interactionMessage = "Teleport Door is locked. Complete Professor Alfred's setup first.";
                 teleportDoorLockedMessageShown = true;
             }
-            player.teleportToTile(HOMETOWN_TELEPORT_DOOR_TILE_X + 1, HOMETOWN_TELEPORT_DOOR_TILE_Y + 2);
+            player.teleportToTile(
+                    HOMETOWN_TELEPORT_DOOR_TILE_X,
+                    HOMETOWN_TELEPORT_DOOR_TILE_Y + HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES
+            );
             return;
         }
         if (!teleportInProgress && gameState == GameState.EXPLORATION) {
@@ -1492,8 +1501,8 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean isInsideTeleportDoorTrigger() {
         int doorX = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE;
         int doorY = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE;
-        int triggerW = TILE_SIZE * 3;
-        int triggerH = TILE_SIZE * 2;
+        int triggerW = TILE_SIZE * HOMETOWN_TELEPORT_DOOR_WIDTH_TILES;
+        int triggerH = TILE_SIZE * HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES;
         int px = player.getCenterX();
         int py = player.getCenterY();
         return px >= doorX && px <= doorX + triggerW && py >= doorY && py <= doorY + triggerH;
@@ -1505,8 +1514,8 @@ public class GamePanel extends JPanel implements Runnable {
         }
         int x = HOMETOWN_TELEPORT_DOOR_TILE_X * TILE_SIZE - camera.getX();
         int y = HOMETOWN_TELEPORT_DOOR_TILE_Y * TILE_SIZE - camera.getY();
-        int w = TILE_SIZE * 3;
-        int h = TILE_SIZE * 2;
+        int w = TILE_SIZE * HOMETOWN_TELEPORT_DOOR_WIDTH_TILES;
+        int h = TILE_SIZE * HOMETOWN_TELEPORT_DOOR_HEIGHT_TILES;
         g2d.setColor(new Color(28, 40, 70, 210));
         g2d.fillRoundRect(x, y, w, h, 8, 8);
         g2d.setColor(new Color(130, 210, 255));
@@ -1578,7 +1587,14 @@ public class GamePanel extends JPanel implements Runnable {
     private World[] createWorlds() {
         String aldrichBase = findAldrichSpriteBaseDir();
         World[] built = new World[]{
-                new World("Hometown", 46, 36, TILE_SIZE, 23, 18, new Npc[]{}),
+                new World(
+                        "Hometown",
+                        46, 36,
+                        TILE_SIZE,
+                        HometownTileMap.TELEPORTER_X + 1,
+                        HometownTileMap.TELEPORTER_Y + HometownTileMap.TELEPORTER_HEIGHT_TILES,
+                        new Npc[]{}
+                ),
                 new World("World 2 - Alpha Village", 50, 38, TILE_SIZE, 25, 19, new Npc[]{
                         new Npc(
                                 "Chief Rei",
@@ -1664,7 +1680,8 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/professor-alfred/profalfred-l.png",
                                 "res/characters/professor-alfred/profalfred-r.png"
                         )
-                })
+                }),
+                new World("House", 46, 37, TILE_SIZE, 22, 22, new Npc[]{})
         };
         for (World world : built) {
             WorldTileMapRegistry.apply(world);
@@ -1717,7 +1734,6 @@ public class GamePanel extends JPanel implements Runnable {
             player.render(scene, camera);
             renderParticles(scene, false);
             current.drawStructuresAfter(scene, camera, (int) player.getY() + player.getSize());
-            drawHometownTeleportDoorPlaceholder(scene, current);
             drawDebugHitboxes(scene);
             drawScanMarker(scene);
             if (bossArenaActive) {
@@ -2249,7 +2265,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void drawDialogueAboveNpc(Graphics2D g2d) {
-        uiRenderer.drawDialogueAboveNpc(g2d, activeNpc, dialogueController, player, camera);
+        uiRenderer.drawDialogueAboveNpc(g2d, activeNpc, dialogueController, player, camera, worlds[worldIndex]);
     }
 
     private void drawCollapseEffects(Graphics2D g2d) {

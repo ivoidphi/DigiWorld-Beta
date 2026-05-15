@@ -5,6 +5,7 @@ import digiworld.core.World;
 public final class InteriorMapRegistry {
     private static final AbstractImageInteriorMap[] INTERIORS = {
             new House1InteriorTileMap(),
+            new House1InteriorTileMap("House"),
             new LaboratoryInteriorTileMap()
     };
 

@@ -21,6 +21,10 @@ public final class House1InteriorTileMap extends AbstractImageInteriorMap {
         super("House 1", "res/Structures/House/House_interior.png");
     }
 
+    public House1InteriorTileMap(String worldName) {
+        super(worldName, "res/Structures/House/House_interior.png");
+    }
+
     @Override
     protected String fillImagePath() {
         return "res/Structures/House/black.png";

@@ -59,6 +59,10 @@ public class World {
         structures.add(s);
     }
 
+    public void clearStructures() {
+        structures.clear();
+    }
+
     /** Return mutable list of structures (caller treats as read-only). */
     public List<Structure> getStructures() {
         return structures;

@@ -52,7 +52,12 @@ public class Structure {
     public int wallStartY() { return y + wallOffsetY; }
 
     public Rectangle getCollisionRect() {
-        return new Rectangle(x + leftPad, y + wallOffsetY, width - leftPad - rightPad, height - wallOffsetY);
+        int collisionWidth = width - leftPad - rightPad;
+        int collisionHeight = height - wallOffsetY;
+        if (collisionWidth <= 0 || collisionHeight <= 0) {
+            return new Rectangle(Integer.MIN_VALUE / 4, Integer.MIN_VALUE / 4, 0, 0);
+        }
+        return new Rectangle(x + leftPad, y + wallOffsetY, collisionWidth, collisionHeight);
     }
 
     public int getX() { return x; }
