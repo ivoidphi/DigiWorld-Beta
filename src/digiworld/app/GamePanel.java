@@ -1734,7 +1734,6 @@ public class GamePanel extends JPanel implements Runnable {
             player.render(scene, camera);
             renderParticles(scene, false);
             current.drawStructuresAfter(scene, camera, (int) player.getY() + player.getSize());
-            drawDebugHitboxes(scene);
             drawScanMarker(scene);
             if (bossArenaActive) {
                 drawBossArena(scene, current);
@@ -2390,33 +2389,6 @@ public class GamePanel extends JPanel implements Runnable {
         c.drawLine(px - 8, py, px + 8, py);
         c.drawLine(px, py - 8, px, py + 8);
         c.dispose();
-    }
-
-    private void drawDebugHitboxes(Graphics2D g) {
-        // Player hitbox
-        int px = (int) player.getX() - camera.getX();
-        int py = (int) player.getY() - camera.getY();
-        int ps = player.getSize();
-        g.setColor(Color.RED);
-        g.drawRect(px, py, ps, ps);
-
-        // Structure hitboxes
-        for (Structure s : worlds[worldIndex].getStructures()) {
-            Rectangle r = s.getCollisionRect();
-            int sx = r.x - camera.getX();
-            int sy = r.y - camera.getY();
-            g.setColor(Color.GREEN);
-            g.drawRect(sx, sy, r.width, r.height);
-        }
-
-        // Door hitboxes
-        for (DoorEntry d : doorManager.getDoors()) {
-            Rectangle r = d.getRect();
-            int dx = r.x - camera.getX();
-            int dy = r.y - camera.getY();
-            g.setColor(Color.BLUE);
-            g.drawRect(dx, dy, r.width, r.height);
-        }
     }
 
 }
