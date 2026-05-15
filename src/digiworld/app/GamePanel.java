@@ -53,6 +53,18 @@ public class GamePanel extends JPanel implements Runnable {
 
     public int getWorldIndex() { return worldIndex; }
     public Player getPlayer() { return player; }
+    public int getCoins() { return coins; }
+    public void addCoins(int amount) { coins = Math.max(0, coins + amount); }
+
+    public int getPlayerAverageLevel() {
+        BattleCreature[] equipped = inventory.getEquippedBeasts();
+        if (equipped == null || equipped.length == 0) return 1;
+        int total = 0;
+        for (BattleCreature b : equipped) {
+            total += b.getLevel();
+        }
+        return Math.max(1, total / equipped.length);
+    }
 
     private Thread gameThread;
     private long lastTimeNanos;
@@ -110,6 +122,7 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean hasGWatch;
     private boolean hasMechDriver;
     private int beastCards;
+    private int coins;
     private static final class BushTile {
         final int x;
         final int y;
@@ -157,6 +170,7 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean alphaTutorialTriggered;
     private boolean bossArenaActive;
     private int currentBossWorldIndex;
+    private String currentBossName;
     private final QuestManager questManager;
     private boolean alphaArrivalDialogueDone;
     private boolean autoCloseDialogueWhenFinished;
@@ -171,6 +185,7 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean teleportDoorLockedMessageShown;
     private boolean teleportInProgress;
     private double teleportDoorProximity;
+    private double worldBannerAlpha;
 
     public GamePanel() {
         setPreferredSize(new Dimension(SCREEN_WIDTH, SCREEN_HEIGHT));
@@ -191,6 +206,8 @@ public class GamePanel extends JPanel implements Runnable {
 
         camera = new Camera();
         worlds = createWorlds();
+        Npc glitch = findNpcByName(worlds[3], "Glitch");
+        if (glitch != null) glitch.setGrayscale(true);
         battleSystem = new BattleSystem();
         soundManager = SoundManager.getInstance();
         battleSystem.setSoundManager(soundManager);
@@ -249,6 +266,7 @@ public class GamePanel extends JPanel implements Runnable {
         hasGWatch = false;
         hasMechDriver = false;
         beastCards = 0;
+        coins = 0;
         validEncounterBushes = new ArrayList<>();
         hiddenVineratopsTileX = -1;
         hiddenVineratopsTileY = -1;
@@ -287,6 +305,7 @@ public class GamePanel extends JPanel implements Runnable {
         alphaTutorialTriggered = false;
         bossArenaActive = false;
         currentBossWorldIndex = -1;
+        currentBossName = null;
         alphaArrivalDialogueDone = false;
         autoCloseDialogueWhenFinished = false;
         autoCloseDialogueTimer = 0.0;
@@ -296,6 +315,7 @@ public class GamePanel extends JPanel implements Runnable {
         teleportDoorLockedMessageShown = false;
         teleportInProgress = false;
         teleportDoorProximity = 0.0;
+        worldBannerAlpha = 1.0;
         soundManager.playWorldMusic(worlds[worldIndex].getName());
     }
 
@@ -354,14 +374,27 @@ public class GamePanel extends JPanel implements Runnable {
                 battleSystem.handleClick(pendingClickX, pendingClickY);
                 clickPending = false;
             }
+            if (input.consumeJustPressed(KeyEvent.VK_F)) {
+                previousState = GameState.BATTLE;
+                gameState = GameState.ITEMS_INVENTORY;
+                interactionMessage = "";
+                return;
+            }
             battleSystem.update(deltaSeconds);
             String result = battleSystem.handleInput(input);
             if (!battleSystem.isActive()) {
                 encounterCooldownTimer = 2.0 + random.nextDouble() * 3.0;
-                String caughtCreature = battleSystem.consumeCaughtCreatureName();
-                if (caughtCreature != null && !caughtCreature.isBlank()) {
+
+                BattleCreature caughtCreature = battleSystem.consumeCaughtCreature();
+                if (caughtCreature != null) {
                     inventory.addBeast(caughtCreature);
                 }
+
+                int earnedCoins = battleSystem.consumeCoinsEarned();
+                if (earnedCoins > 0) {
+                    addCoins(earnedCoins);
+                }
+
                 String msg = battleSystem.getMessage();
                 applyBattleOutcomeProgress();
                 boolean vineratopsJustWon = false;
@@ -387,6 +420,10 @@ public class GamePanel extends JPanel implements Runnable {
             }
         } else if (gameState == GameState.INVENTORY) {
             handleInventoryInput();
+        } else if (gameState == GameState.ITEMS_INVENTORY) {
+            handleItemsInventoryInput();
+        } else if (gameState == GameState.SHOP) {
+            handleShopInput();
         } else if (gameState == GameState.NPC_MENU) {
             handleMenuInput();
         } else if (gameState == GameState.DIALOGUE) {
@@ -412,6 +449,11 @@ public class GamePanel extends JPanel implements Runnable {
 
             if (input.consumeJustPressed(KeyEvent.VK_B)) {
                 gameState = GameState.INVENTORY;
+                interactionMessage = "";
+                return;
+            }
+            if (input.consumeJustPressed(KeyEvent.VK_F)) {
+                gameState = GameState.ITEMS_INVENTORY;
                 interactionMessage = "";
                 return;
             }
@@ -524,7 +566,7 @@ public class GamePanel extends JPanel implements Runnable {
         objectiveTransitioning = true;
         objectiveTransitionPhase = ObjectiveTransitionPhase.COMPLETE_FADE_IN;
         objectivePhaseTimer = 0.0;
-        objectiveTextAlpha = 0.0; // hide current objective immediately
+        objectiveTextAlpha = 0.0;
         objectiveCompleteAlpha = 0.0;
     }
 
@@ -638,7 +680,7 @@ public class GamePanel extends JPanel implements Runnable {
         } else if (npcName.contains("aldrich") || npcName.contains("alpha")) {
             handleAldrichDialogue(npc);
         } else if (npcName.contains("boss rhonn") || npcName.contains("shopkeeper")) {
-            handleShopkeeperDialogue(npc);
+            openShop(npc);
         } else if (npcName.contains("glitch")) {
             handleGlitchDialogue(npc);
         } else {
@@ -853,7 +895,7 @@ public class GamePanel extends JPanel implements Runnable {
                     new String[]{
                             "Who dares step into my domain?",
                             "My name is " + PLAYER_NAME + ". I came to challenge you.",
-                            "Then face me. I am Altair, the Alpha. And this is my partner, the Alpha Beast, Gekuma. BEAST CARD ON! HENSHIN!"
+                            "Then face me. I am Altair, the Alpha. And this is my partner, the Alpha Beast, Kingmantis. BEAST CARD ON! HENSHIN!"
                     }
             );
             startDialogue(script, "START_BOSS:aldrich|SET_OBJECTIVE:Defeat Aldrich");
@@ -866,13 +908,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
-    private void handleShopkeeperDialogue(Npc npc) {
-        DialogueSequence script = DialogueFactory.createSequence(
-                new String[]{"Boss Rhonn"},
-                new String[]{"Welcome to my shop. Take a look at what I have."}
-        );
-        startDialogue(script, null);
-    }
+
 
     private void handleGlitchDialogue(Npc npc) {
         if (!questManager.isStage(QuestManager.STAGE_REACHED_GLITCH_AREA)) {
@@ -977,7 +1013,7 @@ public class GamePanel extends JPanel implements Runnable {
                     }
                     case "aldrich" -> {
                         aldrichState = 1;
-                        startBossBattle(worlds[worldIndex], "Gekuma");
+                        startBossBattle(worlds[worldIndex], "Kingmantis");
                     }
                     case "trialmaster" -> startBossBattle(worlds[worldIndex], "Voltchu");
                 }
@@ -1100,6 +1136,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
+    // --- LEVEL UP SYSTEM FIX: Creates real objects, saves them to bag ---
     private void handleStarterSelectionInput() {
         if (input.consumeJustPressed(KeyEvent.VK_ESCAPE)) {
             interactionMessage = "Select exactly 3 Mecha Beasts to continue.";
@@ -1146,15 +1183,13 @@ public class GamePanel extends JPanel implements Runnable {
                 return;
             }
 
-            String[] party = new String[3];
-            int i = 0;
             for (Integer idx : selectedStarterIndices) {
-                String beast = starterChoices[idx];
-                party[i++] = beast;
+                String beastName = starterChoices[idx];
+                BattleCreature beast = BeastCatalog.createCreature(beastName);
                 inventory.addBeast(beast);
             }
-            battleSystem.setPlayerParty(party);
-            battleSystem.setStarterBeast(party[0]);
+
+            prepareBattlePartyFromInventory();
             starterChosen = true;
             starterSelectionDone = true;
             hasGWatch = true;
@@ -1255,9 +1290,127 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
+    private void handleItemsInventoryInput() {
+        if (input.consumeJustPressed(KeyEvent.VK_ESCAPE) || input.consumeJustPressed(KeyEvent.VK_B)) {
+            gameState = previousState != null ? previousState : GameState.EXPLORATION;
+            previousState = null;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_UP) || input.consumeJustPressed(KeyEvent.VK_W)) {
+            inventory.moveItemSelection(-1);
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_DOWN) || input.consumeJustPressed(KeyEvent.VK_S)) {
+            inventory.moveItemSelection(1);
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+            useSelectedItem();
+        }
+    }
+
+    private void useSelectedItem() {
+        String[] names = inventory.getItemNames();
+        int idx = inventory.getItemInvSelectedIndex();
+        if (names == null || idx < 0 || idx >= names.length) return;
+        String name = names[idx];
+        ItemType type = ItemType.fromDisplayName(name);
+        if (type == null) return;
+
+        BattleCreature[] beasts = battleSystem.getPlayerCreatures();
+        if (beasts == null || beasts.length == 0) {
+            interactionMessage = "No beasts to use item on.";
+            return;
+        }
+
+        if (!inventory.removeItemCount(name, 1)) {
+            interactionMessage = "No " + name + " left.";
+            return;
+        }
+
+        switch (type.effect()) {
+            case HEAL_PERCENT -> {
+                for (BattleCreature b : beasts) {
+                    if (b != null) b.healByPercent(type.value());
+                }
+                interactionMessage = "Used " + name + ". All beasts healed by " + (int)(type.value() * 100) + "% HP.";
+            }
+            case BUFF_ATTACK -> {
+                for (BattleCreature b : beasts) {
+                    if (b != null) b.boostPermanentAttack(type.value());
+                }
+                interactionMessage = "Used " + name + ". All beasts Attack +" + (int)(type.value() * 100) + "%.";
+            }
+            case BUFF_DEFENSE -> {
+                for (BattleCreature b : beasts) {
+                    if (b != null) b.boostPermanentDefense(type.value());
+                }
+                interactionMessage = "Used " + name + ". All beasts Defense +" + (int)(type.value() * 100) + "%.";
+            }
+            case BUFF_MAX_HP -> {
+                for (BattleCreature b : beasts) {
+                    if (b != null) b.boostPermanentMaxHp(type.value());
+                }
+                interactionMessage = "Used " + name + ". All beasts Max HP +" + (int)(type.value() * 100) + "%.";
+            }
+        }
+
+        if (inventory.getItemCount(name) > 0) {
+            inventory.setItemInvSelectedIndex(Math.min(idx, inventory.getItemNames().length - 1));
+        }
+    }
+
+    private int shopSelectedIndex;
+    private Npc shopNpc;
+    private GameState previousState;
+
+    private void openShop(Npc npc) {
+        shopNpc = npc;
+        shopSelectedIndex = 0;
+        gameState = GameState.SHOP;
+        interactionMessage = "Welcome to the shop! Select an item to buy.";
+    }
+
+    private void handleShopInput() {
+        if (input.consumeJustPressed(KeyEvent.VK_ESCAPE) || input.consumeJustPressed(KeyEvent.VK_E)) {
+            gameState = GameState.EXPLORATION;
+            if (activeNpc != null) {
+                activeNpc.endInteraction();
+                activeNpc = null;
+            }
+            interactionMessage = "Thanks for visiting!";
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_UP) || input.consumeJustPressed(KeyEvent.VK_W)) {
+            shopSelectedIndex = (shopSelectedIndex - 1 + ItemType.values().length) % ItemType.values().length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_DOWN) || input.consumeJustPressed(KeyEvent.VK_S)) {
+            shopSelectedIndex = (shopSelectedIndex + 1) % ItemType.values().length;
+            return;
+        }
+        if (input.consumeJustPressed(KeyEvent.VK_ENTER) || input.consumeJustPressed(KeyEvent.VK_SPACE)) {
+            purchaseSelectedItem();
+        }
+    }
+
+    private void purchaseSelectedItem() {
+        ItemType[] items = ItemType.values();
+        if (shopSelectedIndex < 0 || shopSelectedIndex >= items.length) return;
+        ItemType selected = items[shopSelectedIndex];
+        if (coins < selected.price()) {
+            interactionMessage = "Not enough coins! Need " + selected.price() + " coins for " + selected.displayName() + ".";
+            return;
+        }
+        coins -= selected.price();
+        inventory.addItemCount(selected.displayName(), 1);
+        interactionMessage = "Purchased " + selected.displayName() + " for " + selected.price() + " coins.";
+    }
+
+    // --- LEVEL UP SYSTEM FIX: Uses actual trained BattleCreature objects ---
     private boolean prepareBattlePartyFromInventory() {
-        String[] equipped = inventory.getEquippedBeastNames();
-        if (equipped.length < 1) {
+        BattleCreature[] equipped = inventory.getEquippedBeasts();
+        if (equipped == null || equipped.length < 1) {
             interactionMessage = "Your Mecha Beasts need recovery first.";
             gameState = GameState.EXPLORATION;
             return false;
@@ -1267,8 +1420,7 @@ public class GamePanel extends JPanel implements Runnable {
             gameState = GameState.EXPLORATION;
             return false;
         }
-        battleSystem.setPlayerParty(equipped);
-        battleSystem.setStarterBeast(equipped[0]);
+        battleSystem.setPlayerCreatures(equipped);
         return true;
     }
 
@@ -1578,8 +1730,16 @@ public class GamePanel extends JPanel implements Runnable {
         data.put("hasGWatch", String.valueOf(hasGWatch));
         data.put("hasMechDriver", String.valueOf(hasMechDriver));
         data.put("beastCards", String.valueOf(beastCards));
+        data.put("coins", String.valueOf(coins));
         data.put("ownedBeasts", String.join(",", inventory.getOwnedBeastNames()));
         data.put("equippedBeasts", String.join(",", inventory.getEquippedBeastNames()));
+        String itemData = "";
+        for (String item : inventory.getItemNames()) {
+            int count = inventory.getItemCount(item);
+            if (count > 0) itemData += item + ":" + count + ",";
+        }
+        if (itemData.endsWith(",")) itemData = itemData.substring(0, itemData.length() - 1);
+        data.put("items", itemData);
         SaveManager.save(data);
     }
 
@@ -1620,6 +1780,16 @@ public class GamePanel extends JPanel implements Runnable {
                                 aldrichBase + "/aldrich-b.png",
                                 aldrichBase + "/aldrich-l.png",
                                 aldrichBase + "/aldrich-r.png"
+                        ),
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{20, 25}, {20, 25}, {20, 25}, {20, 25}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
                 new World("World 3 - Beta City", 56, 42, TILE_SIZE, 28, 21, new Npc[]{
@@ -1642,6 +1812,16 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/trialmaster/trialmaster-b.png",
                                 "res/characters/trialmaster/trialmaster-l.png",
                                 "res/characters/trialmaster/trialmaster-r.png"
+                        ),
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{36, 25}, {36, 25}, {36, 25}, {36, 25}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
                 new World("World 4 - Collapse Zone", 60, 46, TILE_SIZE, 30, 23, new Npc[]{
@@ -1650,6 +1830,16 @@ public class GamePanel extends JPanel implements Runnable {
                                 TILE_SIZE, TILE_SIZE,
                                 new Color(128, 214, 104),
                                 new int[][]{{30, 23}, {30, 23}, {30, 23}, {30, 23}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
+                        ),
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{35, 15}, {32, 15}, {35, 20}, {33, 18}},
                                 "res/characters/glitch-ron/glitchron-fw.png",
                                 "res/characters/glitch-ron/glitchron-b.png",
                                 "res/characters/glitch-ron/glitchron-l.png",
@@ -1667,6 +1857,16 @@ public class GamePanel extends JPanel implements Runnable {
                                 "res/characters/gen-ed/gened-b.png",
                                 "res/characters/gen-ed/gened-l.png",
                                 "res/characters/gen-ed/gened-r.png"
+                        ),
+                        new Npc(
+                                "Shopkeeper",
+                                TILE_SIZE, TILE_SIZE,
+                                new Color(128, 214, 104),
+                                new int[][]{{22, 18}, {22, 18}, {22, 18}, {22, 18}},
+                                "res/characters/glitch-ron/glitchron-fw.png",
+                                "res/characters/glitch-ron/glitchron-b.png",
+                                "res/characters/glitch-ron/glitchron-l.png",
+                                "res/characters/glitch-ron/glitchron-r.png"
                         )
                 }),
                 new World("Laboratory", 46, 37, TILE_SIZE, 22, 22, new Npc[]{
@@ -1725,7 +1925,6 @@ public class GamePanel extends JPanel implements Runnable {
             battleSystem.render(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
         } else {
             current.renderTiles(scene, camera, TILE_SIZE, LOGICAL_WIDTH, LOGICAL_HEIGHT, windTimeSeconds);
-            current.renderWindLines(scene, camera, LOGICAL_WIDTH, LOGICAL_HEIGHT, windTimeSeconds);
             current.drawStructuresBefore(scene, camera, (int) player.getY() + player.getSize());
             for (Npc npc : current.getNpcs()) {
                 npc.render(scene, camera);
@@ -1750,6 +1949,10 @@ public class GamePanel extends JPanel implements Runnable {
             }
             if (gameState == GameState.INVENTORY) {
                 inventory.render(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+            } else if (gameState == GameState.ITEMS_INVENTORY) {
+                inventory.renderItemsInventory(scene, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+            } else if (gameState == GameState.SHOP) {
+                drawShop(scene);
             } else if (gameState == GameState.STARTER_SELECT) {
                 drawRpgBeastSelection(scene, "Professor Alfred", "Choose 3 out of 10 Mecha Beasts", starterChoices, starterSelectionIndex);
             } else if (gameState == GameState.ENEMY_SELECT) {
@@ -1800,7 +2003,9 @@ public class GamePanel extends JPanel implements Runnable {
                 objectiveTextAlpha,
                 objectiveCompleteAlpha,
                 hasGWatch,
-                scanUiFlashTimer > 0.0
+                scanUiFlashTimer > 0.0,
+                coins,
+                worldBannerAlpha
         );
     }
 
@@ -1887,15 +2092,15 @@ public class GamePanel extends JPanel implements Runnable {
     private void spawnLeafParticle(double x, double y, double dirX, double dirY) {
         double spreadX = (random.nextDouble() - 0.5) * 20.0;
         double spreadY = (random.nextDouble() - 0.5) * 12.0;
-                addParticle(new Particle(
-                        x, y,
-                        dirX * (28 + random.nextDouble() * 20) + spreadX * 0.2,
-                        dirY * (12 + random.nextDouble() * 12) - 14 + spreadY * 0.2,
-                        0.32 + random.nextDouble() * 0.22,
-                        new Color(118, 204, 92, 210),
-                        3 + random.nextInt(3),
-                        false
-                ));
+        addParticle(new Particle(
+                x, y,
+                dirX * (28 + random.nextDouble() * 20) + spreadX * 0.2,
+                dirY * (12 + random.nextDouble() * 12) - 14 + spreadY * 0.2,
+                0.32 + random.nextDouble() * 0.22,
+                new Color(118, 204, 92, 210),
+                3 + random.nextInt(3),
+                false
+        ));
     }
 
     private void spawnFootParticle(double x, double y) {
@@ -2016,6 +2221,49 @@ public class GamePanel extends JPanel implements Runnable {
         );
     }
 
+    private void drawShop(Graphics2D g2d) {
+        int boxWidth = Math.min(620, LOGICAL_WIDTH - 70);
+        int boxHeight = Math.min(400, LOGICAL_HEIGHT - 80);
+        int x = (LOGICAL_WIDTH - boxWidth) / 2;
+        int y = (LOGICAL_HEIGHT - boxHeight) / 2;
+
+        g2d.setColor(new Color(0, 0, 0, 220));
+        g2d.fillRoundRect(x, y, boxWidth, boxHeight, 10, 10);
+        g2d.setColor(Color.WHITE);
+        g2d.drawRoundRect(x, y, boxWidth, boxHeight, 10, 10);
+        g2d.setFont(UIFont.regular(12f));
+        g2d.drawString("Shop - Coins: " + coins, x + 14, y + 24);
+        g2d.drawString("Up/Down: Navigate  ENTER: Buy  ESC: Leave", x + 14, y + boxHeight - 12);
+
+        int listStartY = y + 50;
+        ItemType[] items = ItemType.values();
+        for (int i = 0; i < items.length; i++) {
+            int rowY = listStartY + i * 24;
+            if (rowY > y + boxHeight - 30) break;
+
+            if (i == shopSelectedIndex) {
+                g2d.setColor(new Color(255, 255, 255, 45));
+                g2d.fillRoundRect(x + 10, rowY - 13, boxWidth - 20, 22, 6, 6);
+                g2d.setColor(Color.WHITE);
+            } else {
+                g2d.setColor(new Color(220, 220, 220));
+            }
+
+            boolean canAfford = coins >= items[i].price();
+            if (!canAfford) g2d.setColor(new Color(180, 100, 100));
+
+            String line = (i + 1) + ". " + items[i].displayName() + " - " + items[i].price() + "c";
+            g2d.drawString(line, x + 16, rowY);
+
+            if (i == shopSelectedIndex) {
+                g2d.setColor(new Color(180, 180, 180));
+                g2d.setFont(UIFont.regular(10f));
+                g2d.drawString(items[i].description(), x + 16, rowY + 16);
+                g2d.setFont(UIFont.regular(12f));
+            }
+        }
+    }
+
     private boolean canTeleportNext(Npc npc, World world) {
         return npc != null
                 && "Professor Alfred".equalsIgnoreCase(npc.getName());
@@ -2060,7 +2308,6 @@ public class GamePanel extends JPanel implements Runnable {
         String name = current.getName();
         int playerTileX = (int) player.getX() / TILE_SIZE;
         int playerTileY = (int) player.getY() / TILE_SIZE;
-
     }
 
     private void startBossBattle(World current, String bossName) {
@@ -2071,18 +2318,22 @@ public class GamePanel extends JPanel implements Runnable {
         if (!prepareBattlePartyFromInventory()) {
             return;
         }
+        int playerLevel = getPlayerAverageLevel();
+        int bossLevel = Math.max(3, (int) Math.ceil(playerLevel * 1.75));
+        bossLevel = Math.min(bossLevel, 20);
         bossArenaActive = true;
         currentBossWorldIndex = worldIndex;
-        interactionMessage = "Boss battle: " + bossName;
+        currentBossName = bossName == null ? null : bossName.trim().toLowerCase();
+        interactionMessage = "Boss battle: " + bossName + " (Lv" + bossLevel + ")";
         battleSystem.setOwnedBeasts(inventory.getOwnedBeastNames());
-        battleSystem.startWildBattle(bossName);
+        battleSystem.startWildBattle(bossName, bossLevel);
         gameState = GameState.BATTLE;
         soundManager.playCombatMusic();
     }
 
     private boolean isBossUnlockedByQuest(String bossName) {
         String normalized = bossName == null ? "" : bossName.trim().toLowerCase();
-        if ("gekuma".equals(normalized) || "aldrich".equals(normalized)) {
+        if ("kingmantis".equals(normalized) || "aldrich".equals(normalized)) {
             return questManager.atLeast(QuestManager.STAGE_COMPLETED_TUTORIAL);
         }
         if ("ace jazz".equals(normalized) || "pirrot".equals(normalized)) {
@@ -2134,11 +2385,12 @@ public class GamePanel extends JPanel implements Runnable {
     private void handleBossDefeat() {
         if (currentBossWorldIndex == 1 && questManager.isStage(QuestManager.STAGE_COMPLETED_TUTORIAL)) {
             interactionMessage = "Come back when your bond with your beasts is stronger, fool.";
-            String[] equipped = inventory.getEquippedBeastNames();
+
+            BattleCreature[] equipped = inventory.getEquippedBeasts();
             if (equipped != null && equipped.length >= 3) {
-                battleSystem.setPlayerParty(equipped);
-                battleSystem.setStarterBeast(equipped[0]);
+                battleSystem.setPlayerCreatures(equipped);
             }
+
             player.teleportToTile(25, 14);
             setObjective("Defeat Aldrich");
         }

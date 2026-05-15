@@ -39,11 +39,11 @@ public class GameUiRenderer {
         this.dialoguePortraits = loadDialoguePortraits();
     }
 
-    public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective, double objectiveAlpha, double objectiveCompleteAlpha, boolean hasGWatch, boolean scanActive) {
-        drawHud(g2d, current, interactionMenuOpen, hasNearbyNpc, interactionMessage, currentObjective, objectiveAlpha, objectiveCompleteAlpha, hasGWatch, scanActive, 1.0);
+    public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective, double objectiveAlpha, double objectiveCompleteAlpha, boolean hasGWatch, boolean scanActive, int coins) {
+        drawHud(g2d, current, interactionMenuOpen, hasNearbyNpc, interactionMessage, currentObjective, objectiveAlpha, objectiveCompleteAlpha, hasGWatch, scanActive, coins, 1.0);
     }
 
-    public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective, double objectiveAlpha, double objectiveCompleteAlpha, boolean hasGWatch, boolean scanActive, double bannerAlpha) {
+    public void drawHud(Graphics2D g2d, World current, boolean interactionMenuOpen, boolean hasNearbyNpc, String interactionMessage, String currentObjective, double objectiveAlpha, double objectiveCompleteAlpha, boolean hasGWatch, boolean scanActive, int coins, double bannerAlpha) {
         BufferedImage banner = getWorldBanner(current.getName());
         if (banner != null && bannerAlpha > 0.001) {
             int scaledW = (int) Math.round(banner.getWidth() * 1.45);
@@ -100,6 +100,19 @@ public class GameUiRenderer {
             drawImageShadow(g2d, inventoryIcon, iconBoxX, iconBoxY, iconBoxW, iconBoxH, 2, 2, 0.5f);
             g2d.drawImage(inventoryIcon, iconBoxX, iconBoxY, iconBoxW, iconBoxH, null);
         }
+
+        int coinBoxY = iconBoxY + iconBoxH + 4;
+        int coinBoxH = 16;
+        g2d.setColor(new Color(10, 10, 16, 210));
+        g2d.fillRoundRect(iconBoxX, coinBoxY, iconBoxW, coinBoxH, 6, 6);
+        g2d.setColor(new Color(255, 215, 60));
+        g2d.drawRoundRect(iconBoxX, coinBoxY, iconBoxW, coinBoxH, 6, 6);
+        g2d.setFont(UIFont.bold(9f));
+        String coinText = String.valueOf(coins);
+        int coinTextW = g2d.getFontMetrics().stringWidth(coinText);
+        drawStringShadow(g2d, coinText, iconBoxX + (iconBoxW - coinTextW) / 2, coinBoxY + 12, 1, 1, new Color(0, 0, 0, 180));
+        g2d.setColor(new Color(255, 230, 100));
+        g2d.drawString(coinText, iconBoxX + (iconBoxW - coinTextW) / 2, coinBoxY + 12);
 
         if (interactionMessage != null && !interactionMessage.isEmpty()) {
             g2d.setColor(new Color(255, 255, 255, 230));
@@ -280,7 +293,15 @@ public class GameUiRenderer {
 
             BufferedImage sprite = battleSystem.getCreatureSprite(choices[i]);
             if (sprite != null) {
-                g2d.drawImage(sprite, cardX + 6, drawY + 6, 34, 34, null);
+                int spriteW = sprite.getWidth();
+                int spriteH = sprite.getHeight();
+                int targetSize = 34;
+                double scale = Math.min((double) targetSize / spriteW, (double) targetSize / spriteH);
+                int drawW = (int) (spriteW * scale);
+                int drawH = (int) (spriteH * scale);
+                int offsetX = (targetSize - drawW) / 2;
+                int offsetY = (targetSize - drawH) / 2;
+                g2d.drawImage(sprite, cardX + 6 + offsetX, drawY + 6 + offsetY, drawW, drawH, null);
             }
             g2d.setColor(Color.WHITE);
             g2d.setFont(UIFont.bold(10f));
@@ -310,7 +331,16 @@ public class GameUiRenderer {
         BeastCatalog.BeastTemplate selectedStats = BeastCatalog.findByName(selectedName);
         BufferedImage selectedSprite = battleSystem.getCreatureSprite(selectedName);
         if (selectedSprite != null) {
-            g2d.drawImage(selectedSprite, detailX + 18, detailY + 14, detailW - 36, 92, null);
+            int spriteW = selectedSprite.getWidth();
+            int spriteH = selectedSprite.getHeight();
+            int targetW = detailW - 36;
+            int targetH = 92;
+            double scale = Math.min((double) targetW / spriteW, (double) targetH / spriteH);
+            int drawW = (int) (spriteW * scale);
+            int drawH = (int) (spriteH * scale);
+            int offsetX = (targetW - drawW) / 2;
+            int offsetY = (targetH - drawH) / 2;
+            g2d.drawImage(selectedSprite, detailX + 18 + offsetX, detailY + 14 + offsetY, drawW, drawH, null);
         }
         g2d.setColor(Color.WHITE);
         g2d.setFont(UIFont.bold(12f));

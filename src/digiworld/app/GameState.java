@@ -5,6 +5,8 @@ public enum GameState {
     NPC_MENU,
     BATTLE,
     INVENTORY,
+    ITEMS_INVENTORY,
+    SHOP,
     STARTER_SELECT,
     ENEMY_SELECT,
     DIALOGUE

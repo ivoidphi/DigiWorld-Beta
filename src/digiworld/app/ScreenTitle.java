@@ -48,7 +48,7 @@ public class ScreenTitle extends JFrame {
             dispose();
             GameFrame frame = new GameFrame();
             frame.setVisible(true);
-            SoundManager.getInstance().playWorldMusic("Hometown");
+            SoundManager.getInstance().playWorldMusic("Test Map");
         });
 
         creditsButton.addActionListener(e -> javax.swing.JOptionPane.showMessageDialog(
@@ -94,7 +94,9 @@ public class ScreenTitle extends JFrame {
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            g.drawImage(gifIcon.getImage(), 0, 0, getWidth(), getHeight(), this);
+            if (gifIcon != null && gifIcon.getImage() != null) {
+                g.drawImage(gifIcon.getImage(), 0, 0, getWidth(), getHeight(), this);
+            }
         }
     }
 
@@ -105,7 +107,6 @@ public class ScreenTitle extends JFrame {
             super(text);
             setPreferredSize(new Dimension(220, 55));
             setContentAreaFilled(false);
-            setBorderPainted(false);
             setFocusPainted(false);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             addMouseListener(new HoverListener());
@@ -115,13 +116,15 @@ public class ScreenTitle extends JFrame {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
             g2.setColor(hovered ? new Color(255, 221, 87, 60) : new Color(0, 0, 0, 160));
             g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+
             g2.setColor(hovered ? new Color(255, 221, 87) : Color.WHITE);
             g2.setStroke(new BasicStroke(2f));
             g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 8, 8);
-            g2.setFont(new Font("Arial Black", Font.PLAIN, 18));
 
+            g2.setFont(new Font("Arial Black", Font.PLAIN, 18));
             FontMetrics fm = g2.getFontMetrics();
             int tx = (getWidth() - fm.stringWidth(getText())) / 2;
             int ty = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
@@ -142,9 +145,5 @@ public class ScreenTitle extends JFrame {
                 repaint();
             }
         }
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new ScreenTitle().setVisible(true));
     }
 }
